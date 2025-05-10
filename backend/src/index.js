@@ -4,7 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import pdfParse from 'pdf-parse';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 
@@ -77,6 +77,19 @@ function extractHeaders(text) {
   return headers;
 }
 
+// Helper function to extract text from PDF using pdfjs-dist
+async function extractTextFromPDF(buffer) {
+  const loadingTask = pdfjsLib.getDocument({ data: buffer });
+  const pdf = await loadingTask.promise;
+  let text = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(item => item.str).join(' ') + '\n';
+  }
+  return text;
+}
+
 // Helper function to generate script for a single header
 async function generateScriptForHeader(header) {
   try {
@@ -89,7 +102,7 @@ async function generateScriptForHeader(header) {
         },
         {
           role: "user",
-          content: `Write a short voiceover script for the section titled "${header}". The script should be 2-3 sentences long and maintain a professional, engaging tone.`
+          content: `Write a short voiceover script for the section titled \"${header}\". The script should be 2-3 sentences long and maintain a professional, engaging tone.`
         }
       ],
       temperature: 0.7,
@@ -116,11 +129,11 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     // Read the uploaded PDF file
     const dataBuffer = fs.readFileSync(req.file.path);
     
-    // Parse the PDF
-    const data = await pdfParse(dataBuffer);
+    // Parse the PDF and extract text
+    const text = await extractTextFromPDF(dataBuffer);
     
     // Extract headers from the text
-    const headers = extractHeaders(data.text);
+    const headers = extractHeaders(text);
 
     res.json({
       message: 'File uploaded and parsed successfully',
