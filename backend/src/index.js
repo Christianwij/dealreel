@@ -4,7 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import { getDocument } from 'pdfjs-dist';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 
@@ -79,7 +79,7 @@ function extractHeaders(text) {
 
 // Helper function to extract text from PDF using pdfjs-dist
 async function extractTextFromPDF(buffer) {
-  const loadingTask = pdfjsLib.getDocument({ data: buffer });
+  const loadingTask = getDocument({ data: buffer });
   const pdf = await loadingTask.promise;
   let text = '';
   for (let i = 1; i <= pdf.numPages; i++) {
