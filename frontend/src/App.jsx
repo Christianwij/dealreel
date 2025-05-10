@@ -1,6 +1,10 @@
+import React from 'react'
 import { useState } from 'react'
 import axios from 'axios'
 import './App.css'
+
+// Set your Render backend URL here
+const BACKEND_URL = 'https://dealreel-backend.onrender.com'
 
 function App() {
   const [selectedFile, setSelectedFile] = useState(null)
@@ -33,7 +37,7 @@ function App() {
     formData.append('file', selectedFile)
 
     try {
-      const response = await axios.post('http://localhost:5000/api/upload', formData, {
+      const response = await axios.post(`${BACKEND_URL}/api/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -53,7 +57,7 @@ function App() {
     setError(null)
 
     try {
-      const response = await axios.post('http://localhost:5000/api/generate-script', {
+      const response = await axios.post(`${BACKEND_URL}/api/generate-script`, {
         headers: headers
       })
       setScript(response.data.script)
