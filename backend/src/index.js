@@ -79,7 +79,9 @@ function extractHeaders(text) {
 
 // Helper function to extract text from PDF using pdfjs-dist
 async function extractTextFromPDF(buffer) {
-  const loadingTask = getDocument({ data: buffer });
+  // Convert Buffer to Uint8Array for pdfjs-dist compatibility
+  const uint8Array = new Uint8Array(buffer);
+  const loadingTask = getDocument({ data: uint8Array });
   const pdf = await loadingTask.promise;
   let text = '';
   for (let i = 1; i <= pdf.numPages; i++) {
