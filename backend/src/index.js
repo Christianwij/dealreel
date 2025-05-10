@@ -7,6 +7,8 @@ import fs from 'fs';
 import { getDocument } from 'pdfjs-dist';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import axios from 'axios';
+import { exec } from 'child_process';
 
 // Load environment variables
 dotenv.config();
@@ -21,6 +23,10 @@ const port = 5000;
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
+
+// Initialize ElevenLabs client
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'; // Default to Rachel voice
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -121,6 +127,45 @@ async function generateScriptForHeader(header) {
   }
 }
 
+// Helper function to convert text to speech using ElevenLabs
+async function textToSpeech(text) {
+  try {
+    const response = await axios({
+      method: 'POST',
+      url: `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`,
+      headers: {
+        'Accept': 'audio/mpeg',
+        'Content-Type': 'application/json',
+        'xi-api-key': ELEVENLABS_API_KEY
+      },
+      data: {
+        text: text,
+        model_id: 'eleven_monolingual_v1',
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75
+        }
+      },
+      responseType: 'arraybuffer'
+    });
+
+    // Convert the audio buffer to base64
+    const base64Audio = Buffer.from(response.data).toString('base64');
+    return `data:audio/mpeg;base64,${base64Audio}`;
+  } catch (error) {
+    console.error('Error converting text to speech:', error);
+    throw error;
+  }
+}
+
+// Helper to save base64 audio to file
+function saveBase64Audio(base64, filename) {
+  const audioBuffer = Buffer.from(base64, 'base64');
+  const audioPath = path.join(__dirname, '../../dealreel-video/public/audio', filename);
+  fs.writeFileSync(audioPath, audioBuffer);
+  return `/audio/${filename}`;
+}
+
 // File upload endpoint
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
@@ -137,10 +182,37 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     // Extract headers from the text
     const headers = extractHeaders(text);
 
+    let summary = null;
+    if (headers.length === 0) {
+      // If no headers, generate a summary using OpenAI
+      try {
+        const summaryResponse = await openai.chat.completions.create({
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "system",
+              content: "You are a helpful assistant that summarizes business documents."
+            },
+            {
+              role: "user",
+              content: `Summarize the following PDF content in 3-5 sentences for a business audience.\n\n${text.substring(0, 4000)}` // limit to 4000 chars for token safety
+            }
+          ],
+          temperature: 0.5,
+          max_tokens: 300
+        });
+        summary = summaryResponse.choices[0].message.content.trim();
+      } catch (err) {
+        summary = 'Could not generate summary.';
+      }
+    }
+
     res.json({
       message: 'File uploaded and parsed successfully',
       filename: req.file.filename,
-      headers: headers
+      headers: headers,
+      text: text,
+      summary: summary
     });
   } catch (error) {
     console.error('Error processing PDF:', error);
@@ -168,11 +240,93 @@ app.post('/api/generate-script', async (req, res) => {
   }
 });
 
+// Text-to-speech endpoint
+app.post('/api/text-to-speech', async (req, res) => {
+  try {
+    const { script } = req.body;
+
+    if (!script || !Array.isArray(script)) {
+      return res.status(400).json({ error: 'Script array is required' });
+    }
+
+    // Convert each script section to speech
+    const audioPromises = script.map(async (section) => {
+      const audioData = await textToSpeech(section.text);
+      return {
+        title: section.title,
+        audio: audioData
+      };
+    });
+
+    const audioSections = await Promise.all(audioPromises);
+
+    res.json({ audioSections });
+  } catch (error) {
+    console.error('Error generating audio:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Video generation endpoint
+app.post('/api/generate-video', async (req, res) => {
+  try {
+    const { sections } = req.body; // [{title, text, audio: base64 or URL}]
+    if (!sections || !Array.isArray(sections)) {
+      return res.status(400).json({ error: 'Sections array is required' });
+    }
+
+    // Ensure audio dir exists
+    const audioDir = path.join(__dirname, '../../dealreel-video/public/audio');
+    if (!fs.existsSync(audioDir)) fs.mkdirSync(audioDir, { recursive: true });
+
+    // Save audio files and build JSON for Remotion
+    const remotionSections = sections.map((section, i) => {
+      let audioUrl = section.audio;
+      if (audioUrl && audioUrl.startsWith('data:audio')) {
+        // Save base64 audio
+        const base64 = audioUrl.split(',')[1];
+        const filename = `section${i + 1}.mp3`;
+        audioUrl = saveBase64Audio(base64, filename);
+      }
+      return {
+        title: section.title,
+        text: section.text,
+        audio: audioUrl
+      };
+    });
+
+    // Write JSON input for Remotion
+    const jsonPath = path.join(__dirname, '../../dealreel-video/input.json');
+    fs.writeFileSync(jsonPath, JSON.stringify(remotionSections, null, 2));
+
+    // Output video path
+    const outputPath = path.join(__dirname, '../../dealreel-video/output.mp4');
+
+    // Call Remotion render script
+    await new Promise((resolve, reject) => {
+      exec(`node render-dealreel-video.js input.json output.mp4`, { cwd: path.join(__dirname, '../../dealreel-video') }, (err, stdout, stderr) => {
+        if (err) return reject(stderr || err);
+        resolve(stdout);
+      });
+    });
+
+    // Return video file path (could be served statically or uploaded to cloud)
+    res.json({ video: '/video/output.mp4' });
+  } catch (error) {
+    console.error('Error generating video:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+// Serve Remotion video and audio output statically
+app.use('/video', express.static(path.join(__dirname, '../../dealreel-video')));
+app.use('/audio', express.static(path.join(__dirname, '../../dealreel-video/public/audio')));
+
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server running at http://0.0.0.0:${port}`);
 }); 
