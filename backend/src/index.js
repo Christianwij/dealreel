@@ -34,7 +34,7 @@ const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'; // Default to Rachel voice
 
 // Set this to your deployed microservice URL after deploying to Render
-const PDF_RENDER_MICROSERVICE_URL = 'https://pdf-render-service-1.onrender.com/render';
+const PDF_RENDER_MICROSERVICE_URL = process.env.PDF_RENDER_MICROSERVICE_URL || 'https://pdf-render-service-1.onrender.com/render';
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -385,6 +385,13 @@ app.use('/audio', express.static(path.join(__dirname, '../../dealreel-video/publ
 
 app.get('/api/version', (req, res) => {
   res.send({ url: PDF_RENDER_MICROSERVICE_URL });
+});
+
+app.get('/api/debug', (req, res) => {
+  res.send({
+    env_var: process.env.PDF_RENDER_MICROSERVICE_URL,
+    used_url_in_code: PDF_RENDER_MICROSERVICE_URL
+  });
 });
 
 app.listen(port, '0.0.0.0', () => {
