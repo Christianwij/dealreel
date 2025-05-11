@@ -152,7 +152,8 @@ function App() {
           <div style={{ color: 'red', margin: '1rem 0', fontWeight: 'bold' }}>
             <pre>{backendErrorLog}</pre>
           </div>
-        ) : error && (
+        ) : null}
+        {error && (
           <p className="error">{error}</p>
         )}
         {headers.length > 0 && (
