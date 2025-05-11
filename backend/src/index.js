@@ -33,8 +33,7 @@ const openai = new OpenAI({
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'; // Default to Rachel voice
 
-// Set this to your deployed microservice URL after deploying to Render
-const PDF_RENDER_MICROSERVICE_URL = process.env.PDF_RENDER_MICROSERVICE_URL || 'https://pdf-render-service-1.onrender.com/render';
+console.log('DealReel backend running with LOCAL OCR ONLY');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -178,42 +177,32 @@ function isTextReadable(text) {
   return text.length > 50 && !/[^\x00-\x7F]+/.test(text);
 }
 
-async function pdfToImagesWithMicroservice(filePath) {
-  // Send the PDF to a Puppeteer-based microservice for rendering
-  // The microservice should accept a PDF and return an array of image buffers (one per page)
-  const formData = new FormData();
-  formData.append('file', fs.createReadStream(filePath));
-  const response = await fetch(PDF_RENDER_MICROSERVICE_URL, {
-    method: 'POST',
-    body: formData
-  });
-  if (!response.ok) {
-    throw new Error('Failed to render PDF to images via microservice');
-  }
-  const images = await response.json(); // Expecting an array of base64-encoded images
-  return images.map(img => Buffer.from(img, 'base64'));
-}
-
+// Local OCR fallback using tesseract.js
 async function performOCR(filePath) {
-  // Google Cloud Vision OCR fallback for image-based PDFs using Puppeteer microservice
   try {
-    const client = new vision.ImageAnnotatorClient();
-    const images = await pdfToImagesWithMicroservice(filePath);
-    if (!images.length) {
-      throw new Error('PDF-to-image rendering microservice did not return any images.');
-    }
+    const data = fs.readFileSync(filePath);
+    const uint8Array = new Uint8Array(data);
+    const loadingTask = getDocument({ data: uint8Array });
+    const pdf = await loadingTask.promise;
     let fullText = '';
-    for (const imageBuffer of images) {
-      const [result] = await client.documentTextDetection({ image: { content: imageBuffer } });
-      const pageText = result.fullTextAnnotation ? result.fullTextAnnotation.text : '';
-      fullText += pageText + '\n';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = createCanvas(viewport.width, viewport.height);
+      const context = canvas.getContext('2d');
+      await page.render({ canvasContext: context, viewport: viewport }).promise;
+      const imageBuffer = canvas.toBuffer('image/png');
+      const worker = await createWorker('eng');
+      const { data: { text } } = await worker.recognize(imageBuffer);
+      await worker.terminate();
+      fullText += text + '\n';
     }
     if (!fullText) {
-      throw new Error('Google Vision OCR did not return any text.');
+      throw new Error('Local OCR did not return any text.');
     }
     return fullText;
   } catch (err) {
-    console.error('Google Vision OCR error:', err);
+    console.error('Local OCR error:', err);
     throw new Error('OCR fallback failed: ' + err.message);
   }
 }
@@ -445,21 +434,6 @@ app.get('/api/health', (req, res) => {
 // Serve Remotion video and audio output statically
 app.use('/video', express.static(path.join(__dirname, '../../dealreel-video')));
 app.use('/audio', express.static(path.join(__dirname, '../../dealreel-video/public/audio')));
-
-app.get('/api/version', (req, res) => {
-  res.send({ url: PDF_RENDER_MICROSERVICE_URL });
-});
-
-app.get('/api/debug', (req, res) => {
-  res.send({
-    env_var: process.env.PDF_RENDER_MICROSERVICE_URL,
-    used_url_in_code: PDF_RENDER_MICROSERVICE_URL
-  });
-});
-
-app.get('/api/env', (req, res) => {
-  res.send({ env_var: process.env.PDF_RENDER_MICROSERVICE_URL });
-});
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running at http://0.0.0.0:${port}`);
