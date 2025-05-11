@@ -181,7 +181,6 @@ async function performOCR(filePath) {
   const numPages = pdfDoc.getPageCount();
 
   const worker = createWorker();
-  await worker.load();
   await worker.loadLanguage('eng');
   await worker.initialize('eng');
 
@@ -191,8 +190,7 @@ async function performOCR(filePath) {
     const { width, height } = page.getSize();
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
-    // Render the PDF page to the canvas (pdf-lib does not support direct rendering, so this is a placeholder for future implementation or use of a compatible library)
-    // For now, skip rendering and OCR, but this is the correct structure for a pure Node.js solution
+    // Rendering placeholder
     // const imagePath = `${outputDir}/slide_${i + 1}.png`;
     // const buffer = canvas.toBuffer('image/png');
     // fs.writeFileSync(imagePath, buffer);
