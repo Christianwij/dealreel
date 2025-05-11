@@ -14,6 +14,8 @@ import { PDFDocument } from 'pdf-lib';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import vision from '@google-cloud/vision';
 import fetch from 'node-fetch';
+import canvasPkg from 'canvas';
+const { createCanvas: nodeCreateCanvas, ImageData } = canvasPkg;
 
 // Load environment variables
 dotenv.config();
@@ -63,6 +65,16 @@ app.use(express.json());
 // Create uploads directory if it doesn't exist
 if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
+}
+
+// Patch global ImageData for PDF.js compatibility
+if (typeof global.ImageData === 'undefined') {
+  global.ImageData = ImageData;
+}
+
+// Use node-canvas for createCanvas in Node.js
+function getCompatibleCanvas(width, height) {
+  return nodeCreateCanvas(width, height);
 }
 
 // Helper function to extract headers from text
@@ -188,7 +200,7 @@ async function performOCR(filePath) {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const viewport = page.getViewport({ scale: 2.0 });
-      const canvas = createCanvas(viewport.width, viewport.height);
+      const canvas = getCompatibleCanvas(viewport.width, viewport.height);
       const context = canvas.getContext('2d');
       await page.render({ canvasContext: context, viewport: viewport }).promise;
       const imageBuffer = canvas.toBuffer('image/png');
@@ -203,7 +215,7 @@ async function performOCR(filePath) {
     return fullText;
   } catch (err) {
     console.error('Local OCR error:', err);
-    throw new Error('OCR fallback failed: ' + err.message);
+    throw new Error('OCR fallback failed: ' + (err.message || err.toString()));
   }
 }
 
