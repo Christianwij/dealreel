@@ -17,7 +17,7 @@ import vision from '@google-cloud/vision';
 import fetch from 'node-fetch';
 import canvasPkg from 'canvas';
 const { createCanvas: nodeCreateCanvas, ImageData } = canvasPkg;
-import Tesseract from 'tesseract.js-node';
+import Tesseract from 'tesseract.js';
 
 // Load environment variables
 dotenv.config();
