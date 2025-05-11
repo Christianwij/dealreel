@@ -148,11 +148,12 @@ function App() {
             </button>
           </>
         )}
-        {error && <p className="error">{error}</p>}
-        {backendErrorLog && (
+        {backendErrorLog ? (
           <div style={{ color: 'red', margin: '1rem 0', fontWeight: 'bold' }}>
             <pre>{backendErrorLog}</pre>
           </div>
+        ) : error && (
+          <p className="error">{error}</p>
         )}
         {headers.length > 0 && (
           <>
