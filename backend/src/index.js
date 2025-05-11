@@ -394,6 +394,11 @@ app.get('/api/debug', (req, res) => {
   });
 });
 
+app.get('/api/env', (req, res) => {
+  res.send({ env_var: process.env.PDF_RENDER_MICROSERVICE_URL });
+});
+
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running at http://0.0.0.0:${port}`);
+  console.log('PDF_RENDER_MICROSERVICE_URL:', process.env.PDF_RENDER_MICROSERVICE_URL);
 }); 
