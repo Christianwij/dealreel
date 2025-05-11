@@ -80,26 +80,26 @@ function getCompatibleCanvas(width, height) {
 
 // Helper function to extract headers from text
 function extractHeaders(text) {
-  // Split text into lines and filter for potential headers
   const lines = text.split('\n');
   const headers = lines
     .map(line => line.trim())
     .filter(line => {
-      // Look for lines that:
-      // 1. Are not empty
-      // 2. Are relatively short (less than 50 chars)
-      // 3. Are all uppercase
-      // 4. Don't contain common non-header words
-      const isShort = line.length < 50;
-      const isUpperCase = line === line.toUpperCase();
-      const isNotEmpty = line.length > 0;
-      const isNotCommonWord = !['PAGE', 'OF', 'THE', 'AND', 'FOR'].includes(line);
-      
-      return isShort && isUpperCase && isNotEmpty && isNotCommonWord;
+      // Must be at least 2 words, mostly alpha, not all caps, not mostly numbers/symbols
+      const words = line.split(/\s+/);
+      const alphas = line.replace(/[^a-zA-Z]/g, '').length;
+      const nums = line.replace(/[^0-9]/g, '').length;
+      const symbols = line.replace(/[a-zA-Z0-9\s]/g, '').length;
+      return (
+        line.length > 4 &&
+        words.length >= 2 &&
+        alphas > nums &&
+        alphas > symbols &&
+        /[a-zA-Z]/.test(line) &&
+        !/^([A-Z\s]+)$/.test(line) &&
+        !/^\d+$/.test(line)
+      );
     })
-    // Remove duplicates while preserving order
     .filter((header, index, self) => self.indexOf(header) === index);
-
   return headers;
 }
 
@@ -190,17 +190,16 @@ function isTextReadable(text) {
   return text.length > 50 && !/[^\x00-\x7F]+/.test(text);
 }
 
-// Helper to preprocess image buffer for OCR (grayscale, contrast)
+// Helper to preprocess image buffer for OCR (grayscale, adaptive threshold)
 function preprocessImageForOCR(canvas) {
   const ctx = canvas.getContext('2d');
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  // Grayscale and increase contrast
+  // Grayscale and adaptive threshold (binarization)
   for (let i = 0; i < imageData.data.length; i += 4) {
     const avg = (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
-    // Increase contrast
-    const contrast = 1.5;
-    const contrasted = Math.max(0, Math.min(255, (avg - 128) * contrast + 128));
-    imageData.data[i] = imageData.data[i+1] = imageData.data[i+2] = contrasted;
+    // Adaptive threshold: if avg > 180, set to white, else black
+    const bin = avg > 180 ? 255 : 0;
+    imageData.data[i] = imageData.data[i+1] = imageData.data[i+2] = bin;
   }
   ctx.putImageData(imageData, 0, 0);
   return canvas;
@@ -216,7 +215,7 @@ async function performOCR(filePath) {
     let fullText = '';
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 4.0 }); // Higher resolution
+      const viewport = page.getViewport({ scale: 4.0 }); // High-res
       const canvas = getCompatibleCanvas(viewport.width, viewport.height);
       const context = canvas.getContext('2d');
       await page.render({ canvasContext: context, viewport: viewport }).promise;
@@ -225,14 +224,21 @@ async function performOCR(filePath) {
       // Use tesseract.js for OCR with best settings
       const { data: { text } } = await Tesseract.recognize(imageBuffer, 'eng', {
         tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
-        tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT
+        tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+        user_defined_dpi: 300
       });
       fullText += text + '\n';
     }
     if (!fullText) {
       throw new Error('Local OCR did not return any text.');
     }
-    return fullText;
+    // Clean OCR output: remove lines that are too short, mostly non-alphanumeric, or excessive symbols
+    const cleaned = fullText.split('\n').filter(line => {
+      const alnum = line.replace(/[^a-zA-Z0-9]/g, '').length;
+      const nonAlnum = line.replace(/[a-zA-Z0-9]/g, '').length;
+      return line.trim().length > 2 && alnum > nonAlnum && /[a-zA-Z]/.test(line);
+    }).join('\n');
+    return cleaned;
   } catch (err) {
     console.error('Local OCR error:', err);
     throw new Error('OCR fallback failed: ' + (err.message || err.toString()));
