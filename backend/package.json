@@ -20,7 +20,7 @@
     "multer": "^1.4.5-lts.1",
     "openai": "^4.28.0",
     "tesseract.js": "^4.0.2",
-    "pdfjs-dist": "^4.2.67",
+    "pdfjs-dist": "3.11.174",
     "pdf-lib": "^1.17.1",
     "@napi-rs/canvas": "^0.1.41",
     "canvas": "^2.11.2",
