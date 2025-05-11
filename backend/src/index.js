@@ -17,6 +17,7 @@ import fetch from 'node-fetch';
 import canvasPkg from 'canvas';
 const { createCanvas: nodeCreateCanvas, ImageData } = canvasPkg;
 import Tesseract from 'tesseract.js';
+import fsExtra from 'fs-extra';
 
 // Load environment variables
 dotenv.config();
@@ -245,29 +246,26 @@ async function performOCR(filePath) {
   }
 }
 
-// PATCH: Make /api/upload return only a videoUrl (static placeholder for now)
+// PATCH: On upload, copy a static placeholder video to uploads/{timestamp}-{originalname}.mp4 and return its URL
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   const startTime = Date.now();
   const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
   try {
-    console.log(`[STEP 1: UPLOAD RECEIVED] Request ID: ${requestId}`);
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded', requestId });
     }
-    // Simulate processing (OCR, etc.)
-    // ... (real processing would go here)
-    // Return a static video URL as a placeholder
+    // Copy static placeholder video to uploads/{timestamp}-{originalname}.mp4
+    const videoFilename = `${Date.now()}-${req.file.originalname}.mp4`;
+    const videoPath = path.join(__dirname, 'public', 'sample.mp4');
+    const destPath = path.join(__dirname, 'uploads', videoFilename);
+    await fsExtra.copy(videoPath, destPath);
+    // Return the video URL
     return res.json({
-      videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+      videoUrl: `/video/${videoFilename}`,
       requestId,
       processingTime: Date.now() - startTime
     });
   } catch (error) {
-    console.error(`[ERROR] Request ${requestId} failed:`, {
-      error: error.message,
-      stack: error.stack,
-      processingTime: Date.now() - startTime
-    });
     res.status(500).json({
       error: error.message,
       requestId,
@@ -382,6 +380,9 @@ app.get('/api/health', (req, res) => {
 // Serve Remotion video and audio output statically
 app.use('/video', express.static(path.join(__dirname, '../../dealreel-video')));
 app.use('/audio', express.static(path.join(__dirname, '../../dealreel-video/public/audio')));
+
+// Serve uploads directory as /video
+app.use('/video', express.static(path.join(__dirname, 'uploads')));
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running at http://0.0.0.0:${port}`);
