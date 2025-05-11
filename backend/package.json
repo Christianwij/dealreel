@@ -24,7 +24,7 @@
     "pdf-lib": "^1.17.1",
     "@napi-rs/canvas": "^0.1.41",
     "canvas": "^2.11.2",
-    "@google-cloud/vision": "^4.4.0"
+    "@google-cloud/vision": "^3.4.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"
