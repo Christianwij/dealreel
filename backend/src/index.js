@@ -384,7 +384,7 @@ app.use('/video', express.static(path.join(__dirname, '../../dealreel-video')));
 app.use('/audio', express.static(path.join(__dirname, '../../dealreel-video/public/audio')));
 
 app.get('/api/version', (req, res) => {
-  res.json({ version: 'DealReel backend v1.0.0', timestamp: new Date().toISOString() });
+  res.send({ url: PDF_RENDER_MICROSERVICE_URL });
 });
 
 app.listen(port, '0.0.0.0', () => {
