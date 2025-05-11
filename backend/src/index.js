@@ -241,7 +241,6 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     
     if (!isTextReadable(text)) {
       console.log(`[STEP 4: OCR FALLBACK] Text unreadable, starting OCR fallback for request ${requestId}`);
-      console.log(`[STEP 4: OCR FALLBACK] Using microservice URL: ${PDF_RENDER_MICROSERVICE_URL}`);
       const ocrStart = Date.now();
       try {
         text = await performOCR(req.file.path);
@@ -249,8 +248,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       } catch (ocrErr) {
         console.error(`[STEP 4: OCR FALLBACK] Error for request ${requestId}:`, {
           error: ocrErr.message,
-          stack: ocrErr.stack,
-          microserviceUrl: PDF_RENDER_MICROSERVICE_URL
+          stack: ocrErr.stack
         });
         return res.status(500).json({ 
           error: 'OCR fallback failed',
@@ -437,5 +435,4 @@ app.use('/audio', express.static(path.join(__dirname, '../../dealreel-video/publ
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running at http://0.0.0.0:${port}`);
-  console.log('PDF_RENDER_MICROSERVICE_URL:', process.env.PDF_RENDER_MICROSERVICE_URL);
 }); 
