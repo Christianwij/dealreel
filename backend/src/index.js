@@ -245,99 +245,22 @@ async function performOCR(filePath) {
   }
 }
 
-// File upload endpoint
+// PATCH: Make /api/upload return only a videoUrl (static placeholder for now)
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   const startTime = Date.now();
   const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
   try {
     console.log(`[STEP 1: UPLOAD RECEIVED] Request ID: ${requestId}`);
-    console.log(`[STEP 1: UPLOAD RECEIVED] Headers:`, JSON.stringify(req.headers, null, 2));
     if (!req.file) {
-      console.error(`[STEP 1: UPLOAD RECEIVED] Error: No file uploaded for request ${requestId}`);
       return res.status(400).json({ error: 'No file uploaded', requestId });
     }
-    console.log(`[STEP 1: UPLOAD RECEIVED] File metadata:`, {
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size,
-      path: req.file.path,
-      requestId
-    });
-    // Read the uploaded PDF file
-    console.log(`[STEP 2: FILE PARSING] Starting file read for request ${requestId}`);
-    const dataBuffer = fs.readFileSync(req.file.path);
-    console.log(`[STEP 2: FILE PARSING] File read complete. Size: ${dataBuffer.length} bytes`);
-    // Parse the PDF and extract text
-    console.log(`[STEP 3: PDF EXTRACTION] Starting PDF text extraction for request ${requestId}`);
-    let text = await extractTextFromPDF(dataBuffer);
-    console.log(`[STEP 3: PDF EXTRACTION] PDF text extraction complete. Text length: ${text.length} chars`);
-    if (!isTextReadable(text)) {
-      console.log(`[STEP 4: OCR FALLBACK] Text unreadable, starting OCR fallback for request ${requestId}`);
-      const ocrStart = Date.now();
-      try {
-        text = await performOCR(req.file.path);
-        console.log(`[STEP 4: OCR FALLBACK] OCR complete in ${Date.now() - ocrStart}ms. Text length: ${text.length} chars`);
-      } catch (ocrErr) {
-        console.error(`[STEP 4: OCR FALLBACK] Error for request ${requestId}:`, {
-          error: ocrErr.message,
-          stack: ocrErr.stack
-        });
-        return res.status(500).json({
-          error: 'OCR fallback failed: ' + (ocrErr.message || ocrErr),
-          requestId
-        });
-      }
-    }
-    // Extract headers from the text
-    console.log(`[STEP 5: HEADER EXTRACTION] Starting header extraction for request ${requestId}`);
-    const headers = extractHeaders(text);
-    console.log(`[STEP 5: HEADER EXTRACTION] Found ${headers.length} headers:`, headers);
-    let summary = null;
-    if (headers.length === 0) {
-      console.log(`[STEP 6: SUMMARY GENERATION] No headers found, generating summary for request ${requestId}`);
-      try {
-        const summaryStart = Date.now();
-        const summaryResponse = await openai.chat.completions.create({
-          model: "gpt-3.5-turbo",
-          messages: [
-            {
-              role: "system",
-              content: "You are a helpful assistant that summarizes business documents."
-            },
-            {
-              role: "user",
-              content: `Summarize the following PDF content in 3-5 sentences for a business audience.\n\n${text.substring(0, 4000)}`
-            }
-          ],
-          temperature: 0.5,
-          max_tokens: 300
-        });
-        summary = summaryResponse.choices[0].message.content.trim();
-        console.log(`[STEP 6: SUMMARY GENERATION] Summary generated in ${Date.now() - summaryStart}ms`);
-      } catch (err) {
-        console.error(`[STEP 6: SUMMARY GENERATION] Error for request ${requestId}:`, {
-          error: err.message,
-          stack: err.stack
-        });
-        summary = 'Could not generate summary.';
-      }
-    }
-    const totalTime = Date.now() - startTime;
-    console.log(`[STEP 7: COMPLETION] Request ${requestId} completed in ${totalTime}ms`);
-    console.log(`[STEP 7: COMPLETION] Response metadata:`, {
-      headersCount: headers.length,
-      hasSummary: !!summary,
-      textLength: text.length,
-      requestId
-    });
-    res.json({
-      message: 'File uploaded and parsed successfully',
-      filename: req.file.filename,
-      headers: headers,
-      text: text,
-      summary: summary,
+    // Simulate processing (OCR, etc.)
+    // ... (real processing would go here)
+    // Return a static video URL as a placeholder
+    return res.json({
+      videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
       requestId,
-      processingTime: totalTime
+      processingTime: Date.now() - startTime
     });
   } catch (error) {
     console.error(`[ERROR] Request ${requestId} failed:`, {
