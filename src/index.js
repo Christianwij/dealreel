@@ -3,7 +3,7 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import fs from 'fs-extra';
+import * as fs from 'fs-extra';
 import pdfjs from 'pdfjs-dist';
 
 console.log('DealReel backend running with LOCAL OCR ONLY');
