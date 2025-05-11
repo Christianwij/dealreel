@@ -220,28 +220,45 @@ async function performOCR(filePath) {
 
 // File upload endpoint
 app.post('/api/upload', upload.single('file'), async (req, res) => {
+  const startTime = Date.now();
   try {
+    console.log('[UPLOAD] File upload endpoint hit');
     if (!req.file) {
+      console.error('[UPLOAD] No file uploaded');
       return res.status(400).json({ error: 'No file uploaded' });
     }
+    console.log(`[UPLOAD] File received: ${req.file.originalname}, path: ${req.file.path}`);
 
     // Read the uploaded PDF file
     const dataBuffer = fs.readFileSync(req.file.path);
     
     // Parse the PDF and extract text
+    console.log('[UPLOAD] Starting PDF text extraction');
     let text = await extractTextFromPDF(dataBuffer);
+    console.log('[UPLOAD] PDF text extraction complete');
     if (!isTextReadable(text)) {
-      console.log('Text unreadable, performing OCR...');
-      text = await performOCR(req.file.path);
+      console.log('[UPLOAD] Text unreadable, starting OCR fallback');
+      const ocrStart = Date.now();
+      try {
+        text = await performOCR(req.file.path);
+        console.log(`[UPLOAD] OCR fallback complete in ${Date.now() - ocrStart}ms`);
+      } catch (ocrErr) {
+        console.error('[UPLOAD] OCR fallback failed:', ocrErr.stack || ocrErr);
+        return res.status(500).json({ error: 'OCR fallback failed: ' + (ocrErr.message || ocrErr) });
+      }
     }
     
     // Extract headers from the text
+    console.log('[UPLOAD] Extracting headers from text');
     const headers = extractHeaders(text);
+    console.log(`[UPLOAD] Headers extracted: ${headers.length}`);
 
     let summary = null;
     if (headers.length === 0) {
       // If no headers, generate a summary using OpenAI
       try {
+        console.log('[UPLOAD] Generating summary with OpenAI');
+        const summaryStart = Date.now();
         const summaryResponse = await openai.chat.completions.create({
           model: "gpt-3.5-turbo",
           messages: [
@@ -258,11 +275,14 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
           max_tokens: 300
         });
         summary = summaryResponse.choices[0].message.content.trim();
+        console.log(`[UPLOAD] Summary generated in ${Date.now() - summaryStart}ms`);
       } catch (err) {
+        console.error('[UPLOAD] Summary generation failed:', err.stack || err);
         summary = 'Could not generate summary.';
       }
     }
 
+    console.log(`[UPLOAD] Upload processing complete in ${Date.now() - startTime}ms`);
     res.json({
       message: 'File uploaded and parsed successfully',
       filename: req.file.filename,
@@ -271,7 +291,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       summary: summary
     });
   } catch (error) {
-    console.error('Error processing PDF:', error);
+    console.error('[UPLOAD] Error processing PDF:', error.stack || error);
     res.status(500).json({ error: error.message });
   }
 });
