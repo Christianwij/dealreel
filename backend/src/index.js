@@ -10,7 +10,7 @@ import dotenv from 'dotenv';
 import axios from 'axios';
 import { exec } from 'child_process';
 import { createWorker } from 'tesseract.js';
-import { convert } from 'pdf-poppler';
+import { fromPath } from 'pdf2pic';
 
 // Load environment variables
 dotenv.config();
@@ -174,12 +174,17 @@ function isTextReadable(text) {
 
 async function performOCR(filePath) {
   const outputDir = 'temp_images';
-  await convert(filePath, {
+  const pdf2pic = fromPath(filePath, {
+    density: 300,
+    saveFilename: 'slide',
+    savePath: outputDir,
     format: 'jpeg',
-    out_dir: outputDir,
-    out_prefix: 'slide',
-    page: null,
+    width: 1920,
+    height: 1080,
   });
+
+  // Convert all pages to images
+  const pages = await pdf2pic.bulk(-1, true);
 
   const worker = createWorker();
   await worker.load();
@@ -187,13 +192,13 @@ async function performOCR(filePath) {
   await worker.initialize('eng');
 
   let fullText = '';
-  for (let i = 1; ; i++) {
-    const imagePath = `${outputDir}/slide-${i}.jpeg`;
+  for (let i = 1; i <= pages.length; i++) {
+    const imagePath = `${outputDir}/slide_${i}.jpg`;
     try {
       const { data: { text } } = await worker.recognize(imagePath);
       fullText += `Slide ${i}: ${text}\n`;
     } catch (error) {
-      break; // No more images
+      break;
     }
   }
   await worker.terminate();
