@@ -34,7 +34,7 @@ const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'; // Default to Rachel voice
 
 // Set this to your deployed microservice URL after deploying to Render
-const PDF_RENDER_MICROSERVICE_URL = 'https://pdf-render-service-1.onrender.com';
+const PDF_RENDER_MICROSERVICE_URL = 'https://pdf-render-service-1.onrender.com/render';
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
