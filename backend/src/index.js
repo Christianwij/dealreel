@@ -190,7 +190,23 @@ function isTextReadable(text) {
   return text.length > 50 && !/[^\x00-\x7F]+/.test(text);
 }
 
-// Local OCR fallback using tesseract.js-node
+// Helper to preprocess image buffer for OCR (grayscale, contrast)
+function preprocessImageForOCR(canvas) {
+  const ctx = canvas.getContext('2d');
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  // Grayscale and increase contrast
+  for (let i = 0; i < imageData.data.length; i += 4) {
+    const avg = (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
+    // Increase contrast
+    const contrast = 1.5;
+    const contrasted = Math.max(0, Math.min(255, (avg - 128) * contrast + 128));
+    imageData.data[i] = imageData.data[i+1] = imageData.data[i+2] = contrasted;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
+// Local OCR fallback using tesseract.js
 async function performOCR(filePath) {
   try {
     const data = fs.readFileSync(filePath);
@@ -200,13 +216,17 @@ async function performOCR(filePath) {
     let fullText = '';
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2.0 });
+      const viewport = page.getViewport({ scale: 4.0 }); // Higher resolution
       const canvas = getCompatibleCanvas(viewport.width, viewport.height);
       const context = canvas.getContext('2d');
       await page.render({ canvasContext: context, viewport: viewport }).promise;
+      preprocessImageForOCR(canvas);
       const imageBuffer = canvas.toBuffer('image/png');
-      // Use tesseract.js-node for OCR
-      const { data: { text } } = await Tesseract.recognize(imageBuffer, 'eng');
+      // Use tesseract.js for OCR with best settings
+      const { data: { text } } = await Tesseract.recognize(imageBuffer, 'eng', {
+        tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
+        tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT
+      });
       fullText += text + '\n';
     }
     if (!fullText) {
