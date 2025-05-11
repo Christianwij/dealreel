@@ -12,6 +12,7 @@ import { exec } from 'child_process';
 import { createWorker } from 'tesseract.js';
 import { PDFDocument } from 'pdf-lib';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
+import vision from '@google-cloud/vision';
 
 // Load environment variables
 dotenv.config();
@@ -173,9 +174,46 @@ function isTextReadable(text) {
   return text.length > 50 && !/[^\x00-\x7F]+/.test(text);
 }
 
+async function pdfToImages(filePath) {
+  const pdfBytes = fs.readFileSync(filePath);
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const numPages = pdfDoc.getPageCount();
+  const images = [];
+  for (let i = 0; i < numPages; i++) {
+    const page = pdfDoc.getPage(i);
+    const { width, height } = page.getSize();
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    // pdf-lib does not support rendering, so this is a placeholder for a real PDF-to-image solution.
+    // In production, use a service or library that can render PDF pages to images in Node.js.
+    // For now, skip actual rendering and return an empty array.
+    // images.push(canvas.toBuffer('image/png'));
+  }
+  return images;
+}
+
 async function performOCR(filePath) {
-  // Immediately return a clear error message for now
-  throw new Error('OCR fallback is not yet implemented for pure Node.js PDF rendering. Please use a PDF with selectable text or contact support.');
+  // Google Cloud Vision OCR fallback for image-based PDFs
+  try {
+    const client = new vision.ImageAnnotatorClient();
+    const images = await pdfToImages(filePath);
+    if (!images.length) {
+      throw new Error('PDF-to-image rendering is not implemented. Please use a PDF with selectable text or contact support.');
+    }
+    let fullText = '';
+    for (const imageBuffer of images) {
+      const [result] = await client.documentTextDetection({ image: { content: imageBuffer } });
+      const pageText = result.fullTextAnnotation ? result.fullTextAnnotation.text : '';
+      fullText += pageText + '\n';
+    }
+    if (!fullText) {
+      throw new Error('Google Vision OCR did not return any text.');
+    }
+    return fullText;
+  } catch (err) {
+    console.error('Google Vision OCR error:', err);
+    throw new Error('OCR fallback failed: ' + err.message);
+  }
 }
 
 // File upload endpoint
