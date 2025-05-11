@@ -9,6 +9,8 @@ import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import { exec } from 'child_process';
+import { createWorker } from 'tesseract.js';
+import { convert } from 'pdf-poppler';
 
 // Load environment variables
 dotenv.config();
@@ -166,6 +168,38 @@ function saveBase64Audio(base64, filename) {
   return `/audio/${filename}`;
 }
 
+function isTextReadable(text) {
+  return text.length > 50 && !/[^\x00-\x7F]+/.test(text);
+}
+
+async function performOCR(filePath) {
+  const outputDir = 'temp_images';
+  await convert(filePath, {
+    format: 'jpeg',
+    out_dir: outputDir,
+    out_prefix: 'slide',
+    page: null,
+  });
+
+  const worker = createWorker();
+  await worker.load();
+  await worker.loadLanguage('eng');
+  await worker.initialize('eng');
+
+  let fullText = '';
+  for (let i = 1; ; i++) {
+    const imagePath = `${outputDir}/slide-${i}.jpeg`;
+    try {
+      const { data: { text } } = await worker.recognize(imagePath);
+      fullText += `Slide ${i}: ${text}\n`;
+    } catch (error) {
+      break; // No more images
+    }
+  }
+  await worker.terminate();
+  return fullText;
+}
+
 // File upload endpoint
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
@@ -177,7 +211,11 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     const dataBuffer = fs.readFileSync(req.file.path);
     
     // Parse the PDF and extract text
-    const text = await extractTextFromPDF(dataBuffer);
+    let text = await extractTextFromPDF(dataBuffer);
+    if (!isTextReadable(text)) {
+      console.log('Text unreadable, performing OCR...');
+      text = await performOCR(req.file.path);
+    }
     
     // Extract headers from the text
     const headers = extractHeaders(text);
