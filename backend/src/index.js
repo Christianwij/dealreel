@@ -17,6 +17,7 @@ import vision from '@google-cloud/vision';
 import fetch from 'node-fetch';
 import canvasPkg from 'canvas';
 const { createCanvas: nodeCreateCanvas, ImageData } = canvasPkg;
+import Tesseract from 'tesseract.js-node';
 
 // Load environment variables
 dotenv.config();
@@ -190,7 +191,7 @@ function isTextReadable(text) {
   return text.length > 50 && !/[^\x00-\x7F]+/.test(text);
 }
 
-// Local OCR fallback using tesseract.js
+// Local OCR fallback using tesseract.js-node
 async function performOCR(filePath) {
   try {
     const data = fs.readFileSync(filePath);
@@ -205,9 +206,8 @@ async function performOCR(filePath) {
       const context = canvas.getContext('2d');
       await page.render({ canvasContext: context, viewport: viewport }).promise;
       const imageBuffer = canvas.toBuffer('image/png');
-      const worker = await createWorker('eng');
-      const { data: { text } } = await worker.recognize(imageBuffer);
-      await worker.terminate();
+      // Use tesseract.js-node for OCR
+      const { data: { text } } = await Tesseract.recognize(imageBuffer, 'eng');
       fullText += text + '\n';
     }
     if (!fullText) {
