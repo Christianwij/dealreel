@@ -174,32 +174,8 @@ function isTextReadable(text) {
 }
 
 async function performOCR(filePath) {
-  const outputDir = 'temp_images';
-  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
-  const pdfBytes = fs.readFileSync(filePath);
-  const pdfDoc = await PDFDocument.load(pdfBytes);
-  const numPages = pdfDoc.getPageCount();
-
-  const worker = createWorker();
-  await worker.load();
-  await worker.load('eng');
-  await worker.initialize('eng');
-
-  let fullText = '';
-  for (let i = 0; i < numPages; i++) {
-    const page = pdfDoc.getPage(i);
-    const { width, height } = page.getSize();
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-    // Rendering placeholder
-    // const imagePath = `${outputDir}/slide_${i + 1}.png`;
-    // const buffer = canvas.toBuffer('image/png');
-    // fs.writeFileSync(imagePath, buffer);
-    // const { data: { text } } = await worker.recognize(imagePath);
-    // fullText += `Slide ${i + 1}: ${text}\n`;
-  }
-  await worker.terminate();
-  return fullText || 'OCR not implemented yet for pure Node.js PDF rendering.';
+  // Immediately return a clear error message for now
+  throw new Error('OCR fallback is not yet implemented for pure Node.js PDF rendering. Please use a PDF with selectable text or contact support.');
 }
 
 // File upload endpoint
