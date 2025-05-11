@@ -181,7 +181,8 @@ async function performOCR(filePath) {
   const numPages = pdfDoc.getPageCount();
 
   const worker = createWorker();
-  await worker.loadLanguage('eng');
+  await worker.load();
+  await worker.load('eng');
   await worker.initialize('eng');
 
   let fullText = '';
@@ -365,6 +366,10 @@ app.get('/api/health', (req, res) => {
 // Serve Remotion video and audio output statically
 app.use('/video', express.static(path.join(__dirname, '../../dealreel-video')));
 app.use('/audio', express.static(path.join(__dirname, '../../dealreel-video/public/audio')));
+
+app.get('/api/version', (req, res) => {
+  res.json({ version: 'DealReel backend v1.0.0', timestamp: new Date().toISOString() });
+});
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running at http://0.0.0.0:${port}`);
