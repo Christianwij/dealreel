@@ -183,7 +183,7 @@ async function pdfToImagesWithMicroservice(filePath) {
   // The microservice should accept a PDF and return an array of image buffers (one per page)
   const formData = new FormData();
   formData.append('file', fs.createReadStream(filePath));
-  const response = await fetch('https://YOUR_PDF_RENDER_MICROSERVICE_URL/render', {
+  const response = await fetch(PDF_RENDER_MICROSERVICE_URL, {
     method: 'POST',
     body: formData
   });
@@ -221,43 +221,65 @@ async function performOCR(filePath) {
 // File upload endpoint
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   const startTime = Date.now();
+  const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+  
   try {
-    console.log('[UPLOAD] File upload endpoint hit');
+    console.log(`[STEP 1: UPLOAD RECEIVED] Request ID: ${requestId}`);
+    console.log(`[STEP 1: UPLOAD RECEIVED] Headers:`, JSON.stringify(req.headers, null, 2));
+    
     if (!req.file) {
-      console.error('[UPLOAD] No file uploaded');
+      console.error(`[STEP 1: UPLOAD RECEIVED] Error: No file uploaded for request ${requestId}`);
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    console.log(`[UPLOAD] File received: ${req.file.originalname}, path: ${req.file.path}`);
+    
+    console.log(`[STEP 1: UPLOAD RECEIVED] File metadata:`, {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      path: req.file.path,
+      requestId
+    });
 
     // Read the uploaded PDF file
+    console.log(`[STEP 2: FILE PARSING] Starting file read for request ${requestId}`);
     const dataBuffer = fs.readFileSync(req.file.path);
+    console.log(`[STEP 2: FILE PARSING] File read complete. Size: ${dataBuffer.length} bytes`);
     
     // Parse the PDF and extract text
-    console.log('[UPLOAD] Starting PDF text extraction');
+    console.log(`[STEP 3: PDF EXTRACTION] Starting PDF text extraction for request ${requestId}`);
     let text = await extractTextFromPDF(dataBuffer);
-    console.log('[UPLOAD] PDF text extraction complete');
+    console.log(`[STEP 3: PDF EXTRACTION] PDF text extraction complete. Text length: ${text.length} chars`);
+    
     if (!isTextReadable(text)) {
-      console.log('[UPLOAD] Text unreadable, starting OCR fallback');
+      console.log(`[STEP 4: OCR FALLBACK] Text unreadable, starting OCR fallback for request ${requestId}`);
+      console.log(`[STEP 4: OCR FALLBACK] Using microservice URL: ${PDF_RENDER_MICROSERVICE_URL}`);
       const ocrStart = Date.now();
       try {
         text = await performOCR(req.file.path);
-        console.log(`[UPLOAD] OCR fallback complete in ${Date.now() - ocrStart}ms`);
+        console.log(`[STEP 4: OCR FALLBACK] OCR complete in ${Date.now() - ocrStart}ms. Text length: ${text.length} chars`);
       } catch (ocrErr) {
-        console.error('[UPLOAD] OCR fallback failed:', ocrErr.stack || ocrErr);
-        return res.status(500).json({ error: 'OCR fallback failed: ' + (ocrErr.message || ocrErr) });
+        console.error(`[STEP 4: OCR FALLBACK] Error for request ${requestId}:`, {
+          error: ocrErr.message,
+          stack: ocrErr.stack,
+          microserviceUrl: PDF_RENDER_MICROSERVICE_URL
+        });
+        return res.status(500).json({ 
+          error: 'OCR fallback failed',
+          details: ocrErr.message,
+          requestId
+        });
       }
     }
     
     // Extract headers from the text
-    console.log('[UPLOAD] Extracting headers from text');
+    console.log(`[STEP 5: HEADER EXTRACTION] Starting header extraction for request ${requestId}`);
     const headers = extractHeaders(text);
-    console.log(`[UPLOAD] Headers extracted: ${headers.length}`);
+    console.log(`[STEP 5: HEADER EXTRACTION] Found ${headers.length} headers:`, headers);
 
     let summary = null;
     if (headers.length === 0) {
-      // If no headers, generate a summary using OpenAI
+      console.log(`[STEP 6: SUMMARY GENERATION] No headers found, generating summary for request ${requestId}`);
       try {
-        console.log('[UPLOAD] Generating summary with OpenAI');
         const summaryStart = Date.now();
         const summaryResponse = await openai.chat.completions.create({
           model: "gpt-3.5-turbo",
@@ -268,31 +290,52 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
             },
             {
               role: "user",
-              content: `Summarize the following PDF content in 3-5 sentences for a business audience.\n\n${text.substring(0, 4000)}` // limit to 4000 chars for token safety
+              content: `Summarize the following PDF content in 3-5 sentences for a business audience.\n\n${text.substring(0, 4000)}`
             }
           ],
           temperature: 0.5,
           max_tokens: 300
         });
         summary = summaryResponse.choices[0].message.content.trim();
-        console.log(`[UPLOAD] Summary generated in ${Date.now() - summaryStart}ms`);
+        console.log(`[STEP 6: SUMMARY GENERATION] Summary generated in ${Date.now() - summaryStart}ms`);
       } catch (err) {
-        console.error('[UPLOAD] Summary generation failed:', err.stack || err);
+        console.error(`[STEP 6: SUMMARY GENERATION] Error for request ${requestId}:`, {
+          error: err.message,
+          stack: err.stack
+        });
         summary = 'Could not generate summary.';
       }
     }
 
-    console.log(`[UPLOAD] Upload processing complete in ${Date.now() - startTime}ms`);
+    const totalTime = Date.now() - startTime;
+    console.log(`[STEP 7: COMPLETION] Request ${requestId} completed in ${totalTime}ms`);
+    console.log(`[STEP 7: COMPLETION] Response metadata:`, {
+      headersCount: headers.length,
+      hasSummary: !!summary,
+      textLength: text.length,
+      requestId
+    });
+
     res.json({
       message: 'File uploaded and parsed successfully',
       filename: req.file.filename,
       headers: headers,
       text: text,
-      summary: summary
+      summary: summary,
+      requestId,
+      processingTime: totalTime
     });
   } catch (error) {
-    console.error('[UPLOAD] Error processing PDF:', error.stack || error);
-    res.status(500).json({ error: error.message });
+    console.error(`[ERROR] Request ${requestId} failed:`, {
+      error: error.message,
+      stack: error.stack,
+      processingTime: Date.now() - startTime
+    });
+    res.status(500).json({ 
+      error: error.message,
+      requestId,
+      processingTime: Date.now() - startTime
+    });
   }
 });
 
