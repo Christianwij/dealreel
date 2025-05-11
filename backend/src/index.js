@@ -224,16 +224,13 @@ async function performOCR(filePath) {
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   const startTime = Date.now();
   const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
-  
   try {
     console.log(`[STEP 1: UPLOAD RECEIVED] Request ID: ${requestId}`);
     console.log(`[STEP 1: UPLOAD RECEIVED] Headers:`, JSON.stringify(req.headers, null, 2));
-    
     if (!req.file) {
       console.error(`[STEP 1: UPLOAD RECEIVED] Error: No file uploaded for request ${requestId}`);
-      return res.status(400).json({ error: 'No file uploaded' });
+      return res.status(400).json({ error: 'No file uploaded', requestId });
     }
-    
     console.log(`[STEP 1: UPLOAD RECEIVED] File metadata:`, {
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
@@ -241,17 +238,14 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       path: req.file.path,
       requestId
     });
-
     // Read the uploaded PDF file
     console.log(`[STEP 2: FILE PARSING] Starting file read for request ${requestId}`);
     const dataBuffer = fs.readFileSync(req.file.path);
     console.log(`[STEP 2: FILE PARSING] File read complete. Size: ${dataBuffer.length} bytes`);
-    
     // Parse the PDF and extract text
     console.log(`[STEP 3: PDF EXTRACTION] Starting PDF text extraction for request ${requestId}`);
     let text = await extractTextFromPDF(dataBuffer);
     console.log(`[STEP 3: PDF EXTRACTION] PDF text extraction complete. Text length: ${text.length} chars`);
-    
     if (!isTextReadable(text)) {
       console.log(`[STEP 4: OCR FALLBACK] Text unreadable, starting OCR fallback for request ${requestId}`);
       const ocrStart = Date.now();
@@ -263,19 +257,16 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
           error: ocrErr.message,
           stack: ocrErr.stack
         });
-        return res.status(500).json({ 
-          error: 'OCR fallback failed',
-          details: ocrErr.message,
+        return res.status(500).json({
+          error: 'OCR fallback failed: ' + (ocrErr.message || ocrErr),
           requestId
         });
       }
     }
-    
     // Extract headers from the text
     console.log(`[STEP 5: HEADER EXTRACTION] Starting header extraction for request ${requestId}`);
     const headers = extractHeaders(text);
     console.log(`[STEP 5: HEADER EXTRACTION] Found ${headers.length} headers:`, headers);
-
     let summary = null;
     if (headers.length === 0) {
       console.log(`[STEP 6: SUMMARY GENERATION] No headers found, generating summary for request ${requestId}`);
@@ -306,7 +297,6 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         summary = 'Could not generate summary.';
       }
     }
-
     const totalTime = Date.now() - startTime;
     console.log(`[STEP 7: COMPLETION] Request ${requestId} completed in ${totalTime}ms`);
     console.log(`[STEP 7: COMPLETION] Response metadata:`, {
@@ -315,7 +305,6 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       textLength: text.length,
       requestId
     });
-
     res.json({
       message: 'File uploaded and parsed successfully',
       filename: req.file.filename,
@@ -331,7 +320,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       stack: error.stack,
       processingTime: Date.now() - startTime
     });
-    res.status(500).json({ 
+    res.status(500).json({
       error: error.message,
       requestId,
       processingTime: Date.now() - startTime
