@@ -13,7 +13,6 @@ import { exec } from 'child_process';
 import { createWorker } from 'tesseract.js';
 import { PDFDocument } from 'pdf-lib';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
-import vision from '@google-cloud/vision';
 import fetch from 'node-fetch';
 import canvasPkg from 'canvas';
 const { createCanvas: nodeCreateCanvas, ImageData } = canvasPkg;
