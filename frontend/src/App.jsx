@@ -19,6 +19,7 @@ function App() {
   const [summary, setSummary] = useState(null)
   const [videoUrl, setVideoUrl] = useState(null)
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false)
+  const [backendErrorLog, setBackendErrorLog] = useState(null)
 
   const handleFileChange = (event) => {
     const file = event.target.files[0]
@@ -59,8 +60,10 @@ function App() {
       setHeaders(response.data.headers || [])
       setTextPreview(response.data.text ? response.data.text.substring(0, 1000) : '')
       setSummary(response.data.summary || null)
+      setBackendErrorLog(null)
     } catch (err) {
       setError(err.response?.data?.error || 'Error uploading file')
+      setBackendErrorLog(err.response?.data?.error || 'Error uploading file')
     } finally {
       setIsLoading(false)
     }
@@ -146,6 +149,11 @@ function App() {
           </>
         )}
         {error && <p className="error">{error}</p>}
+        {backendErrorLog && (
+          <div style={{ color: 'red', margin: '1rem 0', fontWeight: 'bold' }}>
+            <pre>{backendErrorLog}</pre>
+          </div>
+        )}
         {headers.length > 0 && (
           <>
             <div className="headers-container">
