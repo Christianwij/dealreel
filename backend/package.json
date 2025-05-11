@@ -18,7 +18,8 @@
     "tesseract.js": "^2.1.5",
     "pdfjs-dist": "^4.2.67",
     "pdf-lib": "^1.17.1",
-    "@napi-rs/canvas": "^0.1.41"
+    "@napi-rs/canvas": "^0.1.41",
+    "@google-cloud/vision": "^4.4.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"

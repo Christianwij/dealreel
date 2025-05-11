@@ -13,6 +13,7 @@ import { createWorker } from 'tesseract.js';
 import { PDFDocument } from 'pdf-lib';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import vision from '@google-cloud/vision';
+import fetch from 'node-fetch';
 
 // Load environment variables
 dotenv.config();
@@ -174,31 +175,29 @@ function isTextReadable(text) {
   return text.length > 50 && !/[^\x00-\x7F]+/.test(text);
 }
 
-async function pdfToImages(filePath) {
-  const pdfBytes = fs.readFileSync(filePath);
-  const pdfDoc = await PDFDocument.load(pdfBytes);
-  const numPages = pdfDoc.getPageCount();
-  const images = [];
-  for (let i = 0; i < numPages; i++) {
-    const page = pdfDoc.getPage(i);
-    const { width, height } = page.getSize();
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-    // pdf-lib does not support rendering, so this is a placeholder for a real PDF-to-image solution.
-    // In production, use a service or library that can render PDF pages to images in Node.js.
-    // For now, skip actual rendering and return an empty array.
-    // images.push(canvas.toBuffer('image/png'));
+async function pdfToImagesWithMicroservice(filePath) {
+  // Send the PDF to a Puppeteer-based microservice for rendering
+  // The microservice should accept a PDF and return an array of image buffers (one per page)
+  const formData = new FormData();
+  formData.append('file', fs.createReadStream(filePath));
+  const response = await fetch('https://YOUR_PDF_RENDER_MICROSERVICE_URL/render', {
+    method: 'POST',
+    body: formData
+  });
+  if (!response.ok) {
+    throw new Error('Failed to render PDF to images via microservice');
   }
-  return images;
+  const images = await response.json(); // Expecting an array of base64-encoded images
+  return images.map(img => Buffer.from(img, 'base64'));
 }
 
 async function performOCR(filePath) {
-  // Google Cloud Vision OCR fallback for image-based PDFs
+  // Google Cloud Vision OCR fallback for image-based PDFs using Puppeteer microservice
   try {
     const client = new vision.ImageAnnotatorClient();
-    const images = await pdfToImages(filePath);
+    const images = await pdfToImagesWithMicroservice(filePath);
     if (!images.length) {
-      throw new Error('PDF-to-image rendering is not implemented. Please use a PDF with selectable text or contact support.');
+      throw new Error('PDF-to-image rendering microservice did not return any images.');
     }
     let fullText = '';
     for (const imageBuffer of images) {
