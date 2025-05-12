@@ -5,102 +5,114 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import * as fs from 'fs-extra';
 import pdfjs from 'pdfjs-dist';
+import { createWorker } from 'tesseract.js';
 
-console.log('DealReel backend running with LOCAL OCR ONLY');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Create uploads directory if it doesn't exist
-await fs.ensureDir('uploads');
+const app = express();
+const port = process.env.PORT || 5000;
 
-// Local OCR fallback using tesseract.js
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: async function (req, file, cb) {
+    const uploadDir = path.join(__dirname, 'uploads');
+    await fs.ensureDir(uploadDir);
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + file.originalname);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed'));
+    }
+  }
+});
+
+// Enable CORS and JSON parsing
+app.use(cors());
+app.use(express.json());
+
+// Create required directories
+const dirs = [
+  path.join(__dirname, 'uploads'),
+  path.join(__dirname, 'public'),
+  path.join(__dirname, '../../dealreel-video/public/audio')
+];
+
+await Promise.all(dirs.map(dir => fs.ensureDir(dir)));
+
+// Local OCR using tesseract.js
 async function performOCR(filePath) {
   try {
     const data = await fs.readFile(filePath);
     const uint8Array = new Uint8Array(data);
-    const loadingTask = getDocument({ data: uint8Array });
+    const loadingTask = pdfjs.getDocument({ data: uint8Array });
     const pdf = await loadingTask.promise;
     let fullText = '';
+    
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2.0 });
-      const canvas = createCanvas(viewport.width, viewport.height);
-      const context = canvas.getContext('2d');
-      await page.render({ canvasContext: context, viewport: viewport }).promise;
-      const imageBuffer = canvas.toBuffer('image/png');
-      const worker = await createWorker('eng');
-      const { data: { text } } = await worker.recognize(imageBuffer);
-      await worker.terminate();
+      const viewport = page.getViewport({ scale: 4.0 }); // High-res for better OCR
+      const { data: { text } } = await Tesseract.recognize(
+        await page.render({ viewport }).promise,
+        'eng',
+        {
+          tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
+          tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+          user_defined_dpi: 300
+        }
+      );
       fullText += text + '\n';
     }
+    
     if (!fullText) {
-      throw new Error('Local OCR did not return any text.');
+      throw new Error('OCR did not return any text');
     }
     return fullText;
   } catch (err) {
-    console.error('Local OCR error:', err);
-    throw new Error('OCR fallback failed: ' + err.message);
+    console.error('OCR error:', err);
+    throw new Error('OCR failed: ' + err.message);
   }
 }
 
-// Helper to save base64 audio to file
-async function saveBase64Audio(base64, filename) {
-  const audioBuffer = Buffer.from(base64, 'base64');
-  const audioPath = path.join(__dirname, '../../dealreel-video/public/audio', filename);
-  await fs.ensureDir(path.dirname(audioPath));
-  await fs.writeFile(audioPath, audioBuffer);
-  return `/audio/${filename}`;
-}
-
-// Video generation endpoint
-app.post('/api/generate-video', async (req, res) => {
-  try {
-    const { sections } = req.body;
-    if (!sections || !Array.isArray(sections)) {
-      return res.status(400).json({ error: 'Sections array is required' });
-    }
-
-    // Ensure audio dir exists
-    const audioDir = path.join(__dirname, '../../dealreel-video/public/audio');
-    await fs.ensureDir(audioDir);
-
-    // ... existing code ...
-
-    // Write JSON input for Remotion
-    const jsonPath = path.join(__dirname, '../../dealreel-video/input.json');
-    await fs.writeFile(jsonPath, JSON.stringify(remotionSections, null, 2));
-
-    // ... existing code ...
-  } catch (error) {
-    console.error('Error generating video:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// PATCH: On upload, copy a static placeholder video to uploads/{timestamp}-{originalname}.mp4 and return its URL
+// Upload endpoint
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   const startTime = Date.now();
   const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+  
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded', requestId });
     }
 
-    // Ensure uploads directory exists
-    await fs.ensureDir(path.join(__dirname, 'uploads'));
+    // Ensure directories exist
+    const uploadsDir = path.join(__dirname, 'uploads');
+    const publicDir = path.join(__dirname, 'public');
+    await fs.ensureDir(uploadsDir);
+    await fs.ensureDir(publicDir);
 
-    // Copy static placeholder video to uploads/{timestamp}-{originalname}.mp4
+    // Copy placeholder video
     const videoFilename = `${Date.now()}-${req.file.originalname}.mp4`;
     const videoPath = path.join(__dirname, 'public', 'sample.mp4');
-    const destPath = path.join(__dirname, 'uploads', videoFilename);
+    const destPath = path.join(uploadsDir, videoFilename);
 
-    // Ensure source video exists
+    // Verify placeholder exists
     if (!await fs.pathExists(videoPath)) {
       throw new Error('Placeholder video not found');
     }
 
-    // Copy the video file
+    // Copy video file
     await fs.copy(videoPath, destPath);
 
-    // Return the video URL
+    // Return video URL
     return res.json({
       videoUrl: `/video/${videoFilename}`,
       requestId,
@@ -116,15 +128,13 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// Serve uploads directory as /video
-app.use('/video', express.static(path.join(__dirname, 'uploads')));
+// Serve videos with correct content type
+app.use('/video', (req, res, next) => {
+  res.set('Content-Type', 'video/mp4');
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
 
-// Ensure placeholder video exists
-const placeholderVideoPath = path.join(__dirname, 'public', 'sample.mp4');
-const uploadsDir = path.join(__dirname, 'uploads');
-await fs.ensureDir(uploadsDir);
-
-// Start the server
+// Start server
 app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`DealReel backend running on port ${port}`);
 }); 
