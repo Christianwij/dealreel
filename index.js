@@ -79,6 +79,8 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   const startTime = Date.now();
   const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
   try {
+    console.log('UPLOAD DEBUG req.file:', req.file);
+    console.log('UPLOAD DEBUG req.body:', req.body);
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded', requestId });
     }
@@ -111,6 +113,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     console.error('Upload error:', error);
     res.status(500).json({
       error: error.message,
+      stack: error.stack,
       requestId,
       processingTime: Date.now() - startTime
     });
