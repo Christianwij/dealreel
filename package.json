@@ -2,14 +2,13 @@
   "name": "dealreel-backend",
   "version": "1.0.0",
   "description": "Backend server for DealReel",
-  "main": "src/index.js",
   "type": "module",
   "engines": {
     "node": ">=20.0.0 <21.0.0"
   },
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "start": "node index.js",
+    "dev": "nodemon index.js",
     "postinstall": "npm audit fix || true"
   },
   "dependencies": {
