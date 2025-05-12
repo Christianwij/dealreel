@@ -4,7 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as fs from 'fs-extra';
-import pdfjs from 'pdfjs-dist';
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.js';
 import Tesseract from 'tesseract.js';
 import dotenv from 'dotenv';
 
@@ -92,31 +92,29 @@ async function performOCR(filePath) {
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   const startTime = Date.now();
   const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
-  
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded', requestId });
     }
-
     // Ensure directories exist
     const uploadsDir = path.join(__dirname, 'uploads');
     const publicDir = path.join(__dirname, 'public');
     await fs.ensureDir(uploadsDir);
     await fs.ensureDir(publicDir);
-
-    // Copy placeholder video
-    const videoFilename = `${Date.now()}-${req.file.originalname}.mp4`;
-    const videoPath = path.join(__dirname, 'public', 'sample.mp4');
+    // Use requestId for video filename
+    const videoFilename = `${requestId}.mp4`;
+    const videoPath = path.join(publicDir, 'sample.mp4');
     const destPath = path.join(uploadsDir, videoFilename);
-
     // Verify placeholder exists
     if (!await fs.pathExists(videoPath)) {
       throw new Error('Placeholder video not found');
     }
-
     // Copy video file
     await fs.copy(videoPath, destPath);
-
+    // Double-check file existence
+    if (!await fs.pathExists(destPath)) {
+      throw new Error('Failed to copy video file');
+    }
     // Return video URL
     return res.json({
       videoUrl: `/video/${videoFilename}`,
