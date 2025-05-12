@@ -12,6 +12,7 @@ function App() {
   const [error, setError] = useState(null)
   const [videoUrl, setVideoUrl] = useState(null)
   const [processing, setProcessing] = useState(false)
+  const [debugInfo, setDebugInfo] = useState(null)
 
   const handleFileChange = (event) => {
     const file = event.target.files[0]
@@ -19,6 +20,7 @@ function App() {
       setSelectedFile(file)
       setError(null)
       setVideoUrl(null)
+      setDebugInfo(null)
     } else {
       alert('Please select a PDF file')
       event.target.value = null
@@ -30,22 +32,44 @@ function App() {
     setIsLoading(true)
     setError(null)
     setVideoUrl(null)
+    setDebugInfo(null)
     setProcessing(true)
+    
     const formData = new FormData()
     formData.append('file', selectedFile)
+    
     try {
-      // Simulate backend returning a video URL (replace with real endpoint)
+      console.log('Sending request to:', `${BACKEND_URL}/api/upload`)
+      
       const response = await axios.post(`${BACKEND_URL}/api/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { 
+          'Content-Type': 'multipart/form-data'
+        },
       })
-      // If backend returns a video URL, show it. Otherwise, show loading message.
+      
+      console.log('Response:', response.data)
+      
+      // If backend returns a video URL, construct the full URL and show it
       if (response.data.videoUrl) {
-        setVideoUrl(response.data.videoUrl)
+        const fullVideoUrl = `${BACKEND_URL}${response.data.videoUrl}`
+        console.log('Video URL:', fullVideoUrl)
+        setVideoUrl(fullVideoUrl)
       } else {
         setVideoUrl(null)
+        setError('No video URL returned from server')
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Error uploading file')
+      console.error('Upload error:', err)
+      
+      const errorMessage = err.response?.data?.error || 'Error uploading file'
+      const stackTrace = err.response?.data?.stack || ''
+      
+      setError(errorMessage)
+      setDebugInfo(
+        `Status: ${err.response?.status || 'unknown'}\n` +
+        `Message: ${errorMessage}\n` +
+        `Stack: ${stackTrace}`
+      )
     } finally {
       setIsLoading(false)
       setProcessing(false)
@@ -76,6 +100,11 @@ function App() {
         )}
         {error && (
           <p className="error">{error}</p>
+        )}
+        {debugInfo && (
+          <pre className="debug-info" style={{whiteSpace: 'pre-wrap', textAlign: 'left', backgroundColor: '#f6f8fa', padding: '1rem', fontSize: '12px'}}>
+            {debugInfo}
+          </pre>
         )}
         {videoUrl ? (
           <div className="video-player-container">
