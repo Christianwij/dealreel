@@ -4,7 +4,6 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as fs from 'fs-extra';
-import * as pdfjs from 'pdfjs-dist/esm/build/pdf.js';
 import Tesseract from 'tesseract.js';
 import dotenv from 'dotenv';
 
@@ -17,7 +16,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT || 5000;
 
-console.log('DealReel backend running with LOCAL OCR ONLY');
+console.log("🧠 Render is using the latest index.js (sanity check)");
 
 // Force redeploy: 2025-05-12
 
@@ -59,31 +58,20 @@ await Promise.all(dirs.map(dir => fs.ensureDir(dir)));
 // Local OCR using tesseract.js
 async function performOCR(filePath) {
   try {
-    const data = await fs.readFile(filePath);
-    const uint8Array = new Uint8Array(data);
-    const loadingTask = pdfjs.getDocument({ data: uint8Array });
-    const pdf = await loadingTask.promise;
-    let fullText = '';
-    
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 4.0 }); // High-res for better OCR
-      const { data: { text } } = await Tesseract.recognize(
-        await page.render({ viewport }).promise,
-        'eng',
-        {
-          tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
-          tessedit_pageseg_mode: Tesseract.PSM.AUTO,
-          user_defined_dpi: 300
-        }
-      );
-      fullText += text + '\n';
-    }
-    
-    if (!fullText) {
+    // Use Tesseract.js directly on the PDF file (will only work for image-based PDFs)
+    const { data: { text } } = await Tesseract.recognize(
+      filePath,
+      'eng',
+      {
+        tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
+        tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+        user_defined_dpi: 300
+      }
+    );
+    if (!text) {
       throw new Error('OCR did not return any text');
     }
-    return fullText;
+    return text;
   } catch (err) {
     console.error('OCR error:', err);
     throw new Error('OCR failed: ' + err.message);
