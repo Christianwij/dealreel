@@ -4,7 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as fs from 'fs-extra';
-import * as pdfjs from 'pdfjs-dist/build/pdf.js';
+import * as pdfjs from 'pdfjs-dist/esm/build/pdf.js';
 import Tesseract from 'tesseract.js';
 import dotenv from 'dotenv';
 
@@ -18,6 +18,8 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 console.log('DealReel backend running with LOCAL OCR ONLY');
+
+// Force redeploy: 2025-05-12
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
