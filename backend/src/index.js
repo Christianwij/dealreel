@@ -4,7 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as fs from 'fs-extra';
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.js';
+import * as pdfjs from 'pdfjs-dist/build/pdf.js';
 import Tesseract from 'tesseract.js';
 import dotenv from 'dotenv';
 
