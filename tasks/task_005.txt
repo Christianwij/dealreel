@@ -1,0 +1,108 @@
+# Task ID: 5
+# Title: Develop Document Parsing Pipeline
+# Status: pending
+# Dependencies: 3, 4
+# Priority: high
+# Description: Create a Python-based parsing service that extracts structured content from uploaded documents (PDF, PPTX, DOCX) including text, tables, metrics, and metadata.
+# Details:
+1. Set up a FastAPI service on Render:
+```python
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from pydantic import BaseModel
+import os
+
+app = FastAPI()
+
+class DocumentRequest(BaseModel):
+    upload_id: str
+    file_path: str
+    file_type: str
+
+@app.post("/parse-document")
+async def parse_document(request: DocumentRequest, background_tasks: BackgroundTasks):
+    background_tasks.add_task(process_document, request)
+    return {"status": "processing", "upload_id": request.upload_id}
+```
+
+2. Install document parsing libraries:
+```bash
+pip install PyMuPDF pdfminer.six python-docx python-pptx pandas
+```
+
+3. Implement parsers for each document type:
+```python
+def process_document(request: DocumentRequest):
+    # Download file from Supabase Storage
+    file_path = download_from_storage(request.file_path)
+    
+    # Parse based on file type
+    if request.file_type == 'application/pdf':
+        parsed_content = parse_pdf(file_path)
+    elif request.file_type == 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+        parsed_content = parse_pptx(file_path)
+    elif request.file_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        parsed_content = parse_docx(file_path)
+    else:
+        raise ValueError(f"Unsupported file type: {request.file_type}")
+    
+    # Clean and structure the content
+    structured_content = structure_content(parsed_content)
+    
+    # Store parsed content in database
+    store_parsed_content(request.upload_id, structured_content)
+    
+    # Trigger script generation
+    trigger_script_generation(request.upload_id)
+
+def parse_pdf(file_path):
+    # Use PyMuPDF and pdfminer for text, tables, and structure
+    import fitz  # PyMuPDF
+    
+    doc = fitz.open(file_path)
+    content = []
+    
+    for page_num in range(len(doc)):
+        page = doc.load_page(page_num)
+        text = page.get_text("dict")
+        tables = extract_tables_from_pdf_page(page)
+        images = extract_images_from_pdf_page(page)
+        
+        content.append({
+            "page_num": page_num + 1,
+            "text": text,
+            "tables": tables,
+            "images": images
+        })
+    
+    return content
+
+# Similar functions for parse_pptx and parse_docx
+```
+
+4. Implement content structuring and normalization:
+```python
+def structure_content(parsed_content):
+    # Extract sections, headings, and key metrics
+    sections = extract_sections(parsed_content)
+    metrics = extract_metrics(parsed_content)
+    business_model = extract_business_model(parsed_content)
+    
+    return {
+        "sections": sections,
+        "metrics": metrics,
+        "business_model": business_model,
+        "raw_content": parsed_content
+    }
+```
+
+5. Create database functions to store parsed content
+6. Implement error handling and logging
+7. Set up monitoring for the parsing service
+
+# Test Strategy:
+1. Unit test each parser with sample documents
+2. Test extraction accuracy with known content
+3. Benchmark parsing performance with various file sizes
+4. Test error handling with malformed documents
+5. Integration test with the upload flow
+6. Verify structured output format consistency across document types

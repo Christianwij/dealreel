@@ -1,0 +1,121 @@
+# Task ID: 7
+# Title: Implement LLM Script Generation
+# Status: pending
+# Dependencies: 3, 5, 6
+# Priority: high
+# Description: Develop the system to generate personalized video scripts using Claude 3 Opus or GPT-4o based on parsed document content and investor preferences.
+# Details:
+1. Set up LLM API integration:
+```typescript
+// For OpenAI GPT-4o
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// For Anthropic Claude 3 Opus
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY
+});
+```
+
+2. Create prompt engineering function:
+```typescript
+const generatePrompt = (parsedContent, investorProfile) => {
+  return `
+You are an expert investment analyst creating a video script for an investor briefing.
+
+INVESTOR PROFILE:
+- Industry focus: ${investorProfile.industry_focus.join(', ')}
+- Stage preference: ${investorProfile.stage_preference.join(', ')}
+- Important KPIs: ${investorProfile.important_kpis.join(', ')}
+- Red flags: ${investorProfile.red_flags.join(', ')}
+- Preferred tone: ${investorProfile.preferred_tone}
+
+DOCUMENT CONTENT:
+${JSON.stringify(parsedContent)}
+
+Create a 2-5 minute video script with the following sections:
+1. Introduction (company overview, value proposition)
+2. Business Model Analysis (revenue streams, market fit)
+3. Traction & Metrics (focus on the KPIs this investor cares about)
+4. Risk Assessment (highlight any red flags relevant to this investor)
+5. Summary & Investment Potential
+
+Format the response as a JSON object with sections as keys and narration text as values.
+Ensure the script is conversational and ready for voice narration.
+`;
+};
+```
+
+3. Implement script generation function:
+```typescript
+const generateScript = async (uploadId) => {
+  // Get parsed content and investor profile
+  const { data: upload } = await supabase
+    .from('uploads')
+    .select('*, investor_profiles(*)')
+    .eq('id', uploadId)
+    .single();
+    
+  const parsedContent = await getParsedContent(uploadId);
+  const investorProfile = upload.investor_profiles;
+  
+  // Generate prompt
+  const prompt = generatePrompt(parsedContent, investorProfile);
+  
+  // Call LLM API (using Claude 3 Opus as primary)
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-3-opus-20240229',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+    });
+    
+    // Parse and validate script
+    const script = JSON.parse(response.content[0].text);
+    
+    // Store script in database
+    await supabase
+      .from('briefings')
+      .update({ script, status: 'script_generated' })
+      .eq('upload_id', uploadId);
+      
+    return script;
+  } catch (error) {
+    // Fallback to GPT-4o
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+    });
+    
+    const script = JSON.parse(response.choices[0].message.content);
+    
+    await supabase
+      .from('briefings')
+      .update({ script, status: 'script_generated' })
+      .eq('upload_id', uploadId);
+      
+    return script;
+  }
+};
+```
+
+4. Implement script validation and error handling
+5. Create script review interface (optional for admin)
+6. Set up monitoring for LLM API usage and costs
+7. Implement caching for similar documents to reduce API calls
+
+# Test Strategy:
+1. Test prompt generation with various investor profiles
+2. Validate script structure and format consistency
+3. Test error handling with API failures
+4. Benchmark script generation time
+5. Verify script quality with sample documents
+6. Test fallback mechanism between Claude and GPT-4o
+7. Validate script storage in the database

@@ -1,0 +1,77 @@
+# Task ID: 4
+# Title: Implement Secure Document Upload
+# Status: pending
+# Dependencies: 2, 3
+# Priority: high
+# Description: Create a drag-and-drop file upload component that validates file types (PDF, PPTX, DOCX) and sizes (max 50MB) and securely stores files in Supabase Storage.
+# Details:
+1. Create a drag-and-drop upload component using React-Dropzone
+```bash
+npm install react-dropzone
+```
+
+2. Implement file validation logic:
+```typescript
+const validateFile = (file: File) => {
+  const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+  const maxSize = 50 * 1024 * 1024; // 50MB
+  
+  if (!validTypes.includes(file.type)) {
+    return { valid: false, error: 'File type not supported. Please upload PDF, PPTX, or DOCX.' };
+  }
+  
+  if (file.size > maxSize) {
+    return { valid: false, error: 'File size exceeds 50MB limit.' };
+  }
+  
+  return { valid: true, error: null };
+};
+```
+
+3. Set up Supabase Storage bucket with appropriate permissions
+4. Implement file upload to Supabase Storage:
+```typescript
+const uploadFile = async (file: File, userId: string) => {
+  const { data, error } = await supabase.storage
+    .from('documents')
+    .upload(`${userId}/${Date.now()}-${file.name}`, file);
+    
+  if (error) throw error;
+  
+  // Record upload in database
+  const { data: uploadRecord, error: dbError } = await supabase
+    .from('uploads')
+    .insert({
+      user_id: userId,
+      filename: file.name,
+      file_type: file.type,
+      file_size: file.size,
+      storage_path: data.path,
+      status: 'uploaded'
+    })
+    .select();
+    
+  if (dbError) throw dbError;
+  
+  // Trigger processing function
+  await fetch('/api/process-document', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uploadId: uploadRecord[0].id })
+  });
+  
+  return uploadRecord[0];
+};
+```
+
+5. Implement upload progress indicator
+6. Add error handling and retry logic
+7. Create upload history view in the dashboard
+
+# Test Strategy:
+1. Unit test file validation logic with various file types and sizes
+2. Test drag-and-drop functionality with mock files
+3. Integration test for successful uploads to Supabase Storage
+4. Test error handling with network failures and invalid files
+5. Verify database records are created correctly
+6. Test upload cancellation and retry functionality

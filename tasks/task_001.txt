@@ -1,0 +1,30 @@
+# Task ID: 1
+# Title: Setup Project Infrastructure
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Initialize the project repository with Next.js frontend, Supabase backend, and configure deployment environments.
+# Details:
+1. Create a new Next.js project with TypeScript and Tailwind CSS
+```bash
+npx create-next-app dealreel --typescript --tailwind
+```
+2. Set up Supabase project and configure environment variables
+```bash
+npm install @supabase/supabase-js
+```
+3. Create .env files for development and production environments
+```
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+```
+4. Configure Vercel for frontend deployment
+5. Set up Render for FastAPI backend services
+6. Initialize repository with proper .gitignore and README.md
+7. Configure CI/CD pipelines for automated testing and deployment
+
+# Test Strategy:
+1. Verify successful project initialization and dependency installation
+2. Test Supabase connection with a simple query
+3. Confirm environment variables are properly loaded
+4. Validate deployment pipelines with a test deployment

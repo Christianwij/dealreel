@@ -1,0 +1,93 @@
+# Task ID: 6
+# Title: Create Investor Profile Management
+# Status: pending
+# Dependencies: 2, 3
+# Priority: medium
+# Description: Develop the investor profile setup and management interface where users can define their investment preferences, industry focus, KPIs of interest, and preferred briefing style.
+# Details:
+1. Create investor profile form components:
+```typescript
+interface InvestorProfile {
+  industryFocus: string[];
+  stagePreference: string[];
+  importantKpis: string[];
+  redFlags: string[];
+  preferredTone: 'concise' | 'deep-dive' | 'casual' | 'institutional';
+}
+```
+
+2. Implement multi-select components for industries, stages, KPIs, and red flags
+3. Create predefined options for each category:
+```typescript
+const INDUSTRY_OPTIONS = [
+  { value: 'saas', label: 'SaaS' },
+  { value: 'fintech', label: 'Fintech' },
+  { value: 'biotech', label: 'Biotech' },
+  { value: 'climate', label: 'Climate Tech' },
+  { value: 'real_estate', label: 'Real Estate' },
+  // More options...
+];
+
+const STAGE_OPTIONS = [
+  { value: 'seed', label: 'Seed' },
+  { value: 'series_a', label: 'Series A' },
+  { value: 'growth', label: 'Growth' },
+  { value: 'pe', label: 'Private Equity' },
+  // More options...
+];
+
+const KPI_OPTIONS = [
+  { value: 'cac_ltv', label: 'CAC/LTV Ratio' },
+  { value: 'burn_rate', label: 'Burn Rate' },
+  { value: 'revenue_retention', label: 'Revenue Retention' },
+  { value: 'exit_potential', label: 'Exit Potential' },
+  // More options...
+];
+
+const RED_FLAG_OPTIONS = [
+  { value: 'high_churn', label: 'High Churn' },
+  { value: 'no_moat', label: 'No Competitive Moat' },
+  { value: 'team_gaps', label: 'Team Gaps' },
+  // More options...
+];
+
+const TONE_OPTIONS = [
+  { value: 'concise', label: 'Concise' },
+  { value: 'deep-dive', label: 'Deep Dive' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'institutional', label: 'Institutional' },
+];
+```
+
+4. Implement profile save and update functionality:
+```typescript
+const saveProfile = async (profile: InvestorProfile) => {
+  const { data, error } = await supabase
+    .from('investor_profiles')
+    .upsert({
+      id: user.id,
+      industry_focus: profile.industryFocus,
+      stage_preference: profile.stagePreference,
+      important_kpis: profile.importantKpis,
+      red_flags: profile.redFlags,
+      preferred_tone: profile.preferredTone,
+      updated_at: new Date()
+    })
+    .select();
+    
+  if (error) throw error;
+  return data;
+};
+```
+
+5. Create profile completion indicator
+6. Implement profile recommendations based on past interactions
+7. Add profile preview showing how preferences will affect briefings
+
+# Test Strategy:
+1. Unit test form validation and submission
+2. Test multi-select components with various selection patterns
+3. Verify database updates with profile changes
+4. Test profile loading and initialization
+5. Validate UI responsiveness across devices
+6. Test error handling for failed profile updates

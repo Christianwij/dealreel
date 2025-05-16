@@ -1,0 +1,192 @@
+# Task ID: 11
+# Title: Build Investor Dashboard
+# Status: pending
+# Dependencies: 2, 3, 4, 8, 9, 10
+# Priority: medium
+# Description: Create a comprehensive dashboard for investors to manage their uploaded documents, view generated briefings, access summaries, and track their deal evaluation history.
+# Details:
+1. Design dashboard layout with key sections:
+   - Recent uploads
+   - Completed briefings
+   - In-progress items
+   - Deal ratings and summaries
+   - Profile management
+
+2. Implement dashboard data fetching:
+```typescript
+const Dashboard: React.FC = () => {
+  const [uploads, setUploads] = useState([]);
+  const [briefings, setBriefings] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      setIsLoading(true);
+      
+      try {
+        // Get user ID
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) return;
+        
+        // Fetch recent uploads
+        const { data: uploadsData } = await supabase
+          .from('uploads')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(10);
+          
+        setUploads(uploadsData || []);
+        
+        // Fetch briefings
+        const { data: briefingsData } = await supabase
+          .from('briefings')
+          .select('*, uploads(*), summaries(*)')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(10);
+          
+        setBriefings(briefingsData || []);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchDashboardData();
+    
+    // Set up real-time subscription for updates
+    const uploadsSubscription = supabase
+      .channel('uploads-changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'uploads',
+        filter: `user_id=eq.${user?.id}`
+      }, (payload) => {
+        fetchDashboardData();
+      })
+      .subscribe();
+      
+    const briefingsSubscription = supabase
+      .channel('briefings-changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'briefings',
+        filter: `user_id=eq.${user?.id}`
+      }, (payload) => {
+        fetchDashboardData();
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(uploadsSubscription);
+      supabase.removeChannel(briefingsSubscription);
+    };
+  }, []);
+  
+  return (
+    <div className="container mx-auto py-8 px-4">
+      <h1 className="text-2xl font-bold mb-6">Your Investment Dashboard</h1>
+      
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <LoadingSpinner />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Recent Uploads</h2>
+            <UploadsList uploads={uploads} />
+            
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-4">Upload New Document</h2>
+              <UploadComponent />
+            </div>
+          </div>
+          
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Your Briefings</h2>
+            <BriefingsList briefings={briefings} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+3. Create briefing list component:
+```typescript
+const BriefingsList: React.FC<{ briefings: any[] }> = ({ briefings }) => {
+  if (briefings.length === 0) {
+    return (
+      <div className="bg-gray-50 rounded p-6 text-center">
+        <p>No briefings yet. Upload a document to get started.</p>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-4">
+      {briefings.map((briefing) => (
+        <div key={briefing.id} className="border rounded p-4 hover:shadow-md transition">
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="font-semibold">{briefing.uploads.filename}</h3>
+              <p className="text-sm text-gray-500">
+                Created: {new Date(briefing.created_at).toLocaleDateString()}
+              </p>
+              <div className="mt-2 flex items-center">
+                <span className="text-sm font-medium mr-2">Status:</span>
+                <StatusBadge status={briefing.status} />
+              </div>
+            </div>
+            
+            {briefing.rating && (
+              <div className="bg-blue-100 text-blue-800 font-bold rounded-full w-10 h-10 flex items-center justify-center">
+                {briefing.rating}
+              </div>
+            )}
+          </div>
+          
+          {briefing.status === 'completed' && (
+            <div className="mt-4 flex gap-2">
+              <Link href={`/briefings/${briefing.id}`}>
+                <a className="px-3 py-1 bg-blue-600 text-white text-sm rounded">
+                  View Briefing
+                </a>
+              </Link>
+              
+              {briefing.summaries?.length > 0 && (
+                <Link href={`/summaries/${briefing.summaries[0].id}`}>
+                  <a className="px-3 py-1 bg-green-600 text-white text-sm rounded">
+                    View Summary
+                  </a>
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+```
+
+4. Create briefing detail page
+5. Implement dashboard filters and search
+6. Add pagination for large collections
+7. Create analytics section for usage statistics
+
+# Test Strategy:
+1. Test dashboard loading with various user states
+2. Validate real-time updates with database changes
+3. Test responsive layout across device sizes
+4. Verify correct display of briefing statuses
+5. Test navigation between dashboard sections
+6. Validate data fetching performance
+7. Test dashboard with large numbers of uploads and briefings

@@ -1,0 +1,251 @@
+# Task ID: 10
+# Title: Implement Deal Rating and Summary System
+# Status: pending
+# Dependencies: 3, 7, 8
+# Priority: medium
+# Description: Create the system for investors to rate deals on a 1-10 scale, leave comments, and generate personalized written summaries based on their preferences.
+# Details:
+1. Create rating and comment components:
+```typescript
+const DealRating: React.FC<{ briefingId: string }> = ({ briefingId }) => {
+  const [rating, setRating] = useState<number | null>(null);
+  const [comment, setComment] = useState('');
+  const [summary, setSummary] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  
+  useEffect(() => {
+    // Load existing rating and summary
+    const loadRatingAndSummary = async () => {
+      const { data: briefing } = await supabase
+        .from('briefings')
+        .select('rating, comments')
+        .eq('id', briefingId)
+        .single();
+        
+      if (briefing?.rating) {
+        setRating(briefing.rating);
+      }
+      
+      if (briefing?.comments) {
+        setComment(briefing.comments);
+      }
+      
+      const { data: summaryData } = await supabase
+        .from('summaries')
+        .select('content')
+        .eq('briefing_id', briefingId)
+        .single();
+        
+      if (summaryData?.content) {
+        setSummary(summaryData.content);
+      }
+    };
+    
+    loadRatingAndSummary();
+  }, [briefingId]);
+  
+  const submitRating = async () => {
+    if (rating === null) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      await supabase
+        .from('briefings')
+        .update({
+          rating,
+          comments: comment,
+          updated_at: new Date()
+        })
+        .eq('id', briefingId);
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const generateSummary = async () => {
+    setIsGeneratingSummary(true);
+    
+    try {
+      const response = await fetch('/api/generate-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          briefingId,
+          rating,
+          comment
+        })
+      });
+      
+      const data = await response.json();
+      setSummary(data.summary);
+    } catch (error) {
+      console.error('Error generating summary:', error);
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+  
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold">Rate This Deal</h2>
+        <div className="flex items-center gap-2 mt-2">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
+            <button
+              key={value}
+              onClick={() => setRating(value)}
+              className={`w-10 h-10 rounded-full ${rating === value ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      <div>
+        <h3 className="font-semibold">Comments</h3>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Add your thoughts about this deal..."
+          className="w-full p-2 border rounded mt-1 h-24"
+        />
+      </div>
+      
+      <div className="flex gap-4">
+        <button
+          onClick={submitRating}
+          disabled={isSubmitting || rating === null}
+          className="px-4 py-2 bg-blue-600 text-white rounded"
+        >
+          {isSubmitting ? 'Saving...' : 'Save Rating'}
+        </button>
+        
+        <button
+          onClick={generateSummary}
+          disabled={isGeneratingSummary}
+          className="px-4 py-2 bg-green-600 text-white rounded"
+        >
+          {isGeneratingSummary ? 'Generating...' : 'Generate Summary'}
+        </button>
+      </div>
+      
+      {summary && (
+        <div className="mt-6">
+          <h2 className="text-xl font-bold">Deal Summary</h2>
+          <div className="p-4 border rounded mt-2 bg-gray-50">
+            {summary.split('\n').map((paragraph, i) => (
+              <p key={i} className="mb-2">{paragraph}</p>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+2. Implement summary generation API endpoint:
+```typescript
+// pages/api/generate-summary.ts
+import { NextApiRequest, NextApiResponse } from 'next';
+import { createClient } from '@supabase/supabase-js';
+import Anthropic from '@anthropic-ai/sdk';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+);
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+});
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  
+  const { briefingId, rating, comment } = req.body;
+  
+  try {
+    // Get briefing, script, and investor profile
+    const { data: briefing } = await supabase
+      .from('briefings')
+      .select('*, uploads(user_id)')
+      .eq('id', briefingId)
+      .single();
+      
+    const { data: profile } = await supabase
+      .from('investor_profiles')
+      .select('*')
+      .eq('id', briefing.uploads.user_id)
+      .single();
+    
+    // Generate summary using Claude
+    const response = await anthropic.messages.create({
+      model: 'claude-3-opus-20240229',
+      max_tokens: 1500,
+      messages: [
+        {
+          role: 'user',
+          content: `Generate a concise investment summary based on the following information:
+
+INVESTOR PROFILE:
+- Industry focus: ${profile.industry_focus.join(', ')}
+- Stage preference: ${profile.stage_preference.join(', ')}
+- Important KPIs: ${profile.important_kpis.join(', ')}
+- Red flags: ${profile.red_flags.join(', ')}
+
+DEAL INFORMATION:
+${JSON.stringify(briefing.script)}
+
+INVESTOR RATING: ${rating}/10
+INVESTOR COMMENTS: ${comment || 'No comments provided'}
+
+Create a 3-5 paragraph summary that highlights the key aspects of this deal from this investor's perspective. Focus on the alignment with their investment thesis, the strengths and weaknesses of the opportunity, and potential next steps. The tone should be professional and analytical.`
+        }
+      ],
+      temperature: 0.7,
+    });
+    
+    const summary = response.content[0].text;
+    
+    // Save summary to database
+    await supabase
+      .from('summaries')
+      .upsert({
+        briefing_id: briefingId,
+        content: summary,
+        created_at: new Date()
+      });
+    
+    return res.status(200).json({ summary });
+  } catch (error) {
+    console.error('Error generating summary:', error);
+    return res.status(500).json({ error: 'Failed to generate summary' });
+  }
+}
+```
+
+3. Create summary sharing functionality
+4. Implement summary export (PDF, email)
+5. Add deal comparison feature
+6. Create summary templates based on deal types
+7. Implement summary revision history
+
+# Test Strategy:
+1. Test rating component with various scores
+2. Validate summary generation with different investor profiles
+3. Test database storage and retrieval of ratings and summaries
+4. Verify summary quality and personalization
+5. Test error handling for failed summary generation
+6. Benchmark summary generation time
+7. Test summary export functionality

@@ -1,0 +1,157 @@
+<PRD>
+# DealReel – AI-Powered Investment Briefings
+
+## Product Overview
+DealReel helps investors evaluate deals faster by transforming complex investment documents — pitch decks, CIMs, memos, and real estate memoranda — into personalized, narrated AI video briefings.
+
+This is not just slide narration. DealReel uses AI to extract business logic, surface KPIs, highlight risks and opportunities, and present a clear analyst-style breakdown — tailored to each investor’s thesis, preferences, and tone.
+
+---
+
+## Core Features
+
+### 1. Secure Document Upload
+- Accepts PDF, PPTX, and DOCX formats (pitch decks, CIMs, investor memos)
+- Frontend supports drag-and-drop with type/size validation
+- Max file size: 50MB
+- Files stored securely via Supabase Storage
+
+### 2. Content Parsing & Analysis
+- Extracts structured content from slide decks or documents
+- Supports slide/page metadata, tables, metrics, business model descriptors
+- Parses files using Python-based tools (PyMuPDF, pdfminer, python-docx, python-pptx)
+
+### 3. Investor Profile Personalization
+Each investor sets up a personal profile to define their strategy:
+- Industry focus (e.g., SaaS, Biotech, Fintech, Climate, Real Estate)
+- Stage preference (Seed, Series A, Growth, PE)
+- KPIs (e.g., CAC/LTV, burn rate, revenue retention, exit potential)
+- Red flags (e.g., high churn, no moat, team gaps)
+- Preferred tone (concise/deep-dive, casual/institutional)
+
+These preferences influence:
+- Prompt generation and what gets emphasized or skipped
+- Narration tone, script structure, and risk surfacing
+- What appears in post-video summaries
+
+Profile data is stored in Supabase Postgres and can be updated any time.
+
+### 4. LLM-Powered Summary Script Generation
+- Script generation is powered by Claude 3 Opus or GPT-4o
+- Prompts include parsed content + investor profile data
+- Output is structured as sections: intro, business model, traction, risks, summary
+- All output is voice-ready and traceable
+
+### 5. AI-Narrated Video Briefing
+- Narration generated using D-ID (avatar)
+- Visuals composed using Remotion:
+  - Include callouts, metrics, icons, logos, transitions
+  - Sync narration and visuals on a timeline
+- Output: 2–5 minute custom MP4 briefing
+- Stored in Supabase Storage and delivered via investor dashboard
+
+### 6. Interactive Q&A
+- After viewing the video, investor can ask clarifying questions
+- Q&A can be text- or voice-based
+- Answers are grounded in parsed document content
+- Investor feedback is used to fine-tune future prompts
+
+### 7. Deal Rating + Written Summary
+- Investors rate each deal 1–10 and optionally leave comments
+- Written summary is auto-generated and tailored to their preferences
+- Ratings, video, and summaries are saved in their dashboard for future reference
+
+---
+
+## End-to-End Video Generation Workflow
+
+### 1. Upload
+- Investor uploads a pitch deck or CIM (PDF, PPTX, DOCX)
+- File is stored in Supabase Storage
+- Upload is logged to Supabase DB (`uploads` table)
+- Triggers a backend processing function (Supabase Edge Function or Render Webhook)
+
+### 2. Parsing
+- File is parsed using Python-based extractors
+- Extract slide/page content, section titles, tables, and formatting cues
+- Clean and normalize content for LLM input
+
+### 3. Script Generation (LLM)
+- Combine parsed content + investor profile
+- Generate multi-section voice-ready script
+- Output format: JSON or plain text per section
+
+### 4. Video Synthesis
+- D-ID generates avatar-narrated video per script section
+- Remotion adds overlay visuals: key metrics, branding, animations
+- Audio + visuals synced to timeline
+- Final MP4 saved to Supabase Storage (`videos` bucket)
+
+### 5. Post-Processing
+- Investor receives briefing in dashboard
+- Can interact via Q&A, then rate deal
+- Written summary generated and stored
+- All outputs are logged in `briefings`, `summaries`, `qna_sessions` tables
+
+---
+
+## Tech Stack
+
+| Layer        | Toolset / Stack                |
+|--------------|--------------------------------|
+| Frontend     | Next.js (TypeScript, Tailwind), Vercel |
+| Backend      | Supabase Functions (Node), Render (FastAPI for parsing + LLM logic) |
+| Auth         | Supabase Auth                  |
+| Storage      | Supabase Storage               |
+| Database     | Supabase Postgres              |
+| LLMs         | Claude 3 Opus, GPT-4o (OpenAI) |
+| Video        | D-ID (avatar), Remotion (React video) |
+| Testing      | Jest (frontend), Pytest (backend)     |
+
+---
+
+## Development Roadmap
+
+### Phase 1 — MVP
+- [ ] Upload component (drag-drop, validation, size/type limits)
+- [ ] Supabase setup: auth, storage, DB schema (uploads, briefings, preferences)
+- [ ] Parsing pipeline for PDF, DOCX, PPTX
+- [ ] Script generation via LLM (per investor profile)
+- [ ] Video generation using D-ID + Remotion
+- [ ] Rating and summary logic
+- [ ] Q&A interaction (v1: text only)
+- [ ] Basic investor dashboard
+
+### Phase 2 — Learning & Feedback
+- [ ] Track investor engagement (watch time, rating patterns)
+- [ ] Adapt LLM prompts per investor behavior (RAG or memory)
+- [ ] Customize narration voice and script style per profile
+
+### Phase 3 — Expansion
+- [ ] Analytics dashboard for investors (deal scoring, filters)
+- [ ] Upload support for financial models (XLSX parsing)
+- [ ] Public API for accelerators, funds, and platforms
+- [ ] Investor team collaboration (sharing, commenting)
+
+---
+
+## Constraints
+
+- Files must be privately uploaded (no external scraping)
+- Video briefings must reflect actual business logic, not just read slides
+- Output must be personalized, auditable, and stateless
+- Max file size: 50MB
+- System must support multilingual output and investor tone control
+- Performance target: <2 min from upload to video delivery
+
+---
+
+## References
+This PRD is derived from:
+- `DealReel_PLANNING.docx`
+- `DealReel_Technical_Architecture.docx`
+- `DealReel_Tool_Summary.docx`
+- `DealReel_Cursor_Workflow.docx`
+
+All task execution follows the TaskMaster + Cursor coding workflow.
+</PRD>

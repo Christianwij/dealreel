@@ -1,0 +1,197 @@
+# Task ID: 9
+# Title: Build Interactive Q&A System
+# Status: pending
+# Dependencies: 3, 5, 7
+# Priority: medium
+# Description: Implement the post-video Q&A system that allows investors to ask clarifying questions about the deal with answers grounded in the document content.
+# Details:
+1. Create Q&A interface components:
+```typescript
+interface Question {
+  id: string;
+  question: string;
+  answer: string;
+  timestamp: string;
+}
+
+const QAInterface: React.FC<{ briefingId: string }> = ({ briefingId }) => {
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [newQuestion, setNewQuestion] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  useEffect(() => {
+    // Load existing questions
+    const loadQuestions = async () => {
+      const { data } = await supabase
+        .from('qna_sessions')
+        .select('questions')
+        .eq('briefing_id', briefingId)
+        .single();
+        
+      if (data?.questions) {
+        setQuestions(data.questions);
+      }
+    };
+    
+    loadQuestions();
+  }, [briefingId]);
+  
+  const askQuestion = async () => {
+    if (!newQuestion.trim()) return;
+    
+    setIsLoading(true);
+    
+    try {
+      const response = await fetch('/api/ask-question', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          briefingId,
+          question: newQuestion
+        })
+      });
+      
+      const data = await response.json();
+      
+      const newQuestionObj: Question = {
+        id: uuidv4(),
+        question: newQuestion,
+        answer: data.answer,
+        timestamp: new Date().toISOString()
+      };
+      
+      const updatedQuestions = [...questions, newQuestionObj];
+      setQuestions(updatedQuestions);
+      
+      // Save to database
+      await supabase
+        .from('qna_sessions')
+        .upsert({
+          briefing_id: briefingId,
+          questions: updatedQuestions,
+          updated_at: new Date()
+        });
+      
+      setNewQuestion('');
+    } catch (error) {
+      console.error('Error asking question:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold">Ask Questions</h2>
+      
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={newQuestion}
+          onChange={(e) => setNewQuestion(e.target.value)}
+          placeholder="Ask a question about this deal..."
+          className="flex-1 p-2 border rounded"
+        />
+        <button
+          onClick={askQuestion}
+          disabled={isLoading}
+          className="px-4 py-2 bg-blue-600 text-white rounded"
+        >
+          {isLoading ? 'Thinking...' : 'Ask'}
+        </button>
+      </div>
+      
+      <div className="space-y-4">
+        {questions.map((q) => (
+          <div key={q.id} className="border rounded p-4">
+            <p className="font-semibold">{q.question}</p>
+            <p className="mt-2">{q.answer}</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {new Date(q.timestamp).toLocaleString()}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+```
+
+2. Implement question answering API endpoint:
+```typescript
+// pages/api/ask-question.ts
+import { NextApiRequest, NextApiResponse } from 'next';
+import { createClient } from '@supabase/supabase-js';
+import Anthropic from '@anthropic-ai/sdk';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+);
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+});
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  
+  const { briefingId, question } = req.body;
+  
+  try {
+    // Get briefing and parsed content
+    const { data: briefing } = await supabase
+      .from('briefings')
+      .select('*, uploads(*)')
+      .eq('id', briefingId)
+      .single();
+      
+    const parsedContent = await getParsedContent(briefing.upload_id);
+    
+    // Generate answer using Claude
+    const response = await anthropic.messages.create({
+      model: 'claude-3-opus-20240229',
+      max_tokens: 1000,
+      messages: [
+        {
+          role: 'user',
+          content: `You are answering investor questions about a deal. The question is: "${question}"
+
+Here is the document content to reference:
+${JSON.stringify(parsedContent)}
+
+Provide a concise, factual answer based ONLY on the information in the document. If the answer cannot be determined from the document, say so clearly.`
+        }
+      ],
+      temperature: 0.2,
+    });
+    
+    const answer = response.content[0].text;
+    
+    return res.status(200).json({ answer });
+  } catch (error) {
+    console.error('Error answering question:', error);
+    return res.status(500).json({ error: 'Failed to answer question' });
+  }
+}
+```
+
+3. Add voice input option for questions
+4. Implement answer caching for common questions
+5. Create feedback mechanism for answer quality
+6. Add follow-up question suggestions
+7. Implement question history and search
+
+# Test Strategy:
+1. Test Q&A interface with sample questions
+2. Validate answer quality and relevance
+3. Test error handling for unanswerable questions
+4. Benchmark response time
+5. Test database storage and retrieval of Q&A sessions
+6. Verify voice input functionality
+7. Test with various document types and content

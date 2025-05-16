@@ -1,0 +1,76 @@
+# Task ID: 3
+# Title: Design Database Schema
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Create the Supabase Postgres database schema for storing uploads, investor profiles, briefings, summaries, and Q&A sessions.
+# Details:
+1. Design and implement the following tables in Supabase:
+
+```sql
+-- Users table (extends Supabase auth.users)
+CREATE TABLE investor_profiles (
+  id UUID REFERENCES auth.users NOT NULL PRIMARY KEY,
+  industry_focus TEXT[] DEFAULT '{}',
+  stage_preference TEXT[] DEFAULT '{}',
+  important_kpis TEXT[] DEFAULT '{}',
+  red_flags TEXT[] DEFAULT '{}',
+  preferred_tone TEXT DEFAULT 'concise',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Uploads table
+CREATE TABLE uploads (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users NOT NULL,
+  filename TEXT NOT NULL,
+  file_type TEXT NOT NULL,
+  file_size INTEGER NOT NULL,
+  storage_path TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Briefings table
+CREATE TABLE briefings (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  upload_id UUID REFERENCES uploads NOT NULL,
+  user_id UUID REFERENCES auth.users NOT NULL,
+  video_url TEXT,
+  script JSON,
+  status TEXT DEFAULT 'processing',
+  rating INTEGER,
+  comments TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Summaries table
+CREATE TABLE summaries (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  briefing_id UUID REFERENCES briefings NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Q&A sessions table
+CREATE TABLE qna_sessions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  briefing_id UUID REFERENCES briefings NOT NULL,
+  questions JSON DEFAULT '[]',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+2. Set up Row Level Security (RLS) policies for each table
+3. Create database triggers for updated_at timestamps
+4. Configure database indexes for performance optimization
+
+# Test Strategy:
+1. Verify table creation and relationships with test queries
+2. Test RLS policies with different user contexts
+3. Validate constraints and default values
+4. Benchmark query performance with sample data
+5. Test database migrations for future schema changes
