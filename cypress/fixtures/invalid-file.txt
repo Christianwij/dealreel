@@ -1,0 +1,2 @@
+This is an invalid file type that should be rejected by the document upload system.
+It's a simple text file that doesn't match the accepted document formats (PDF, DOCX, PPTX). 

@@ -1,6 +1,6 @@
 # Task ID: 4
 # Title: Implement Secure Document Upload
-# Status: pending
+# Status: done
 # Dependencies: 2, 3
 # Priority: high
 # Description: Create a drag-and-drop file upload component that validates file types (PDF, PPTX, DOCX) and sizes (max 50MB) and securely stores files in Supabase Storage.
@@ -75,3 +75,35 @@ const uploadFile = async (file: File, userId: string) => {
 4. Test error handling with network failures and invalid files
 5. Verify database records are created correctly
 6. Test upload cancellation and retry functionality
+
+# Subtasks:
+## 1. Implement React-Dropzone Component [done]
+### Dependencies: None
+### Description: Create a drag-and-drop file upload component using React-Dropzone that allows users to select files or drag them into the upload area.
+### Details:
+Install React-Dropzone using npm. Create a reusable component that handles file selection via drag-and-drop or file browser. Style the component to provide visual feedback for drag events (drag over, drag leave). Include instructions for users on supported file types and size limits.
+
+## 2. Implement File Validation Logic [done]
+### Dependencies: 4.1
+### Description: Create validation functions to check file types (PDF, PPTX, DOCX) and sizes (max 50MB) before upload.
+### Details:
+Implement the validateFile function to check MIME types and file sizes. Add visual feedback for validation errors. Create helper functions to format file sizes and display friendly file type names. Implement client-side validation before attempting upload to save bandwidth.
+
+## 3. Configure Supabase Storage [done]
+### Dependencies: None
+### Description: Set up a Supabase Storage bucket with appropriate security policies and folder structure for document storage.
+### Details:
+Create a 'documents' bucket in Supabase Storage. Configure RLS (Row Level Security) policies to ensure users can only access their own files. Set up folder structure with user IDs as top-level folders. Configure CORS settings if necessary. Document the storage structure for team reference.
+
+## 4. Implement File Upload with Progress Tracking [done]
+### Dependencies: 4.2, 4.3
+### Description: Create functions to upload files to Supabase Storage with progress indication and database record creation.
+### Details:
+Implement the uploadFile function to handle file uploads to Supabase Storage. Add progress tracking using XHR or fetch with appropriate event listeners. Create database records in the 'uploads' table to track uploaded files. Implement the document processing trigger via API. Add retry logic for failed uploads with exponential backoff.
+
+## 5. Create Upload History Dashboard View [done]
+### Dependencies: 4.4
+### Description: Implement a UI component to display upload history with filtering, sorting, and file management options.
+### Details:
+Create a table or card-based view of uploaded documents. Implement sorting by upload date, file name, and size. Add filtering by file type and status. Include options to download, share, or delete files. Display file metadata including upload date, size, and type. Add pagination for large numbers of uploads.
+

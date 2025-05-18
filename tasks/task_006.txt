@@ -1,6 +1,6 @@
 # Task ID: 6
 # Title: Create Investor Profile Management
-# Status: pending
+# Status: done
 # Dependencies: 2, 3
 # Priority: medium
 # Description: Develop the investor profile setup and management interface where users can define their investment preferences, industry focus, KPIs of interest, and preferred briefing style.

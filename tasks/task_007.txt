@@ -1,6 +1,6 @@
 # Task ID: 7
 # Title: Implement LLM Script Generation
-# Status: pending
+# Status: done
 # Dependencies: 3, 5, 6
 # Priority: high
 # Description: Develop the system to generate personalized video scripts using Claude 3 Opus or GPT-4o based on parsed document content and investor preferences.

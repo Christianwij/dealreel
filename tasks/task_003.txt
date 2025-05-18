@@ -1,6 +1,6 @@
 # Task ID: 3
 # Title: Design Database Schema
-# Status: pending
+# Status: done
 # Dependencies: 1
 # Priority: high
 # Description: Create the Supabase Postgres database schema for storing uploads, investor profiles, briefings, summaries, and Q&A sessions.
@@ -74,3 +74,35 @@ CREATE TABLE qna_sessions (
 3. Validate constraints and default values
 4. Benchmark query performance with sample data
 5. Test database migrations for future schema changes
+
+# Subtasks:
+## 1. Implement Core Database Tables [done]
+### Dependencies: None
+### Description: Create the five main tables in Supabase Postgres as specified in the schema design
+### Details:
+Execute the SQL statements to create investor_profiles, uploads, briefings, summaries, and qna_sessions tables with all specified columns, data types, and constraints. Ensure proper foreign key relationships between tables.
+
+## 2. Set Up Row Level Security Policies [done]
+### Dependencies: 3.1
+### Description: Implement RLS policies for each table to ensure proper data access control
+### Details:
+Create RLS policies that restrict users to only access their own data. For each table, implement policies for SELECT, INSERT, UPDATE, and DELETE operations that check user_id against auth.uid() or appropriate relationships.
+
+## 3. Create Database Triggers for Timestamps [done]
+### Dependencies: 3.1
+### Description: Implement triggers to automatically update the updated_at timestamp columns
+### Details:
+Create a function that sets updated_at to NOW() and create triggers for investor_profiles, briefings, and qna_sessions tables to call this function on UPDATE operations.
+
+## 4. Configure Database Indexes [done]
+### Dependencies: 3.1
+### Description: Add appropriate indexes to optimize query performance
+### Details:
+Create indexes on frequently queried columns including user_id in uploads, briefing_id in summaries and qna_sessions, and upload_id in briefings. Consider composite indexes for common query patterns.
+
+## 5. Implement Data Validation Constraints [done]
+### Dependencies: 3.1
+### Description: Add CHECK constraints and validation rules to ensure data integrity
+### Details:
+Add constraints to validate data such as: status values must be from predefined sets, file_size must be positive, rating must be within a specific range (e.g., 1-5), and required fields cannot be empty.
+

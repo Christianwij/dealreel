@@ -1,6 +1,6 @@
 # Task ID: 2
 # Title: Implement Authentication System
-# Status: pending
+# Status: done
 # Dependencies: 1
 # Priority: high
 # Description: Set up Supabase Auth for user authentication and authorization, including signup, login, and profile management.

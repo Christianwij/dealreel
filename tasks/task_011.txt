@@ -1,6 +1,6 @@
 # Task ID: 11
 # Title: Build Investor Dashboard
-# Status: pending
+# Status: done
 # Dependencies: 2, 3, 4, 8, 9, 10
 # Priority: medium
 # Description: Create a comprehensive dashboard for investors to manage their uploaded documents, view generated briefings, access summaries, and track their deal evaluation history.
@@ -190,3 +190,35 @@ const BriefingsList: React.FC<{ briefings: any[] }> = ({ briefings }) => {
 5. Test navigation between dashboard sections
 6. Validate data fetching performance
 7. Test dashboard with large numbers of uploads and briefings
+
+# Subtasks:
+## 1. Design and implement dashboard layout [done]
+### Dependencies: None
+### Description: Create the UI design and layout structure for the Investor Dashboard
+### Details:
+Design the overall dashboard layout including navigation, sidebar, main content area, and responsive behavior. Implement the base component structure with proper styling using CSS/SCSS. Create reusable layout components like cards, panels, and grid systems that will be used throughout the dashboard.
+
+## 2. Implement data fetching and state management [done]
+### Dependencies: 11.1
+### Description: Set up data fetching from Supabase and implement state management for the dashboard
+### Details:
+Configure Supabase client and authentication. Implement data fetching hooks/services for investor data, briefings, and uploads. Set up global state management using Context API or Redux to handle application state. Create loading states, error handling, and data caching mechanisms for optimal performance.
+
+## 3. Build upload and briefing components [done]
+### Dependencies: 11.1, 11.2
+### Description: Implement components for handling document uploads and investor briefings
+### Details:
+Create file upload component with drag-and-drop functionality and progress indicators. Implement briefing components to display investor information and documents. Add functionality for viewing, downloading, and managing uploaded documents. Implement form validation and error handling for all input components.
+
+## 4. Implement filtering and search functionality [done]
+### Dependencies: 11.2, 11.3
+### Description: Add search and filtering capabilities to the dashboard
+### Details:
+Create search input components with autocomplete functionality. Implement filtering mechanisms for briefings, uploads, and other dashboard data. Add sorting options for different data views. Ensure search and filtering operations are optimized for performance with debouncing and proper state management.
+
+## 5. Develop analytics and user profile management [done]
+### Dependencies: 11.2, 11.4
+### Description: Implement analytics visualizations and user profile management features
+### Details:
+Create data visualization components for investor analytics using charts and graphs. Implement user profile management with settings and preferences. Add performance metrics and dashboard statistics. Ensure all analytics components are responsive and provide meaningful insights to investors.
+
