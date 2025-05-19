@@ -52,78 +52,47 @@ interface SpeechRecognition extends EventTarget {
 export class VoiceService extends EventEmitter {
   private recognition: SpeechRecognition | null = null;
   private audioContext: AudioContext | null = null;
-  private analyzer: AnalyserNode | null = null;
+  private analyser: AnalyserNode | null = null;
   private mediaStream: MediaStream | null = null;
-  private isListening: boolean = false;
-  private soundMonitorInterval: NodeJS.Timeout | null = null;
-  private isInitialized = false;
+  private soundLevelInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     super();
-    this.initializeSpeechRecognition();
+    this.setupRecognition();
   }
 
-  private initializeSpeechRecognition() {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        this.recognition = new SpeechRecognition();
-        this.recognition.continuous = false;
-        this.recognition.interimResults = false;
-        this.isInitialized = true;
-      }
-    }
-  }
-
-  async isSupported(): Promise<boolean> {
-    return this.isInitialized;
-  }
-
-  async startRecording(): Promise<string> {
-    if (!this.recognition) {
+  private setupRecognition() {
+    const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionImpl) {
       throw new Error('Speech recognition is not supported in this browser');
     }
 
-    return new Promise((resolve, reject) => {
-      this.recognition!.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        resolve(transcript);
-      };
-
-      this.recognition!.onerror = (event) => {
-        reject(new Error(`Speech recognition error: ${event.error}`));
-      };
-
-      this.recognition!.start();
-    });
-  }
-
-  stopRecording(): void {
-    if (this.recognition) {
-      this.recognition.stop();
+    this.recognition = new SpeechRecognitionImpl();
+    if (!this.recognition) {
+      throw new Error('Failed to initialize speech recognition');
     }
-  }
 
-  private setupRecognitionHandlers() {
-    this.recognition!.addEventListener('start', () => {
-      this.isListening = true;
+    this.recognition.continuous = false;
+    this.recognition.interimResults = true;
+    this.recognition.lang = 'en-US';
+
+    this.recognition.addEventListener('start', () => {
       this.emit('start');
     });
 
-    this.recognition!.addEventListener('end', () => {
-      this.isListening = false;
+    this.recognition.addEventListener('end', () => {
       this.emit('end');
+      this.stopAudioMonitoring();
     });
 
-    this.recognition!.addEventListener('result', (event: SpeechRecognitionEvent) => {
+    this.recognition.addEventListener('result', (event: SpeechRecognitionEvent) => {
       const result = event.results[event.results.length - 1];
       if (result.isFinal) {
-        const transcript = result[0].transcript.trim();
-        this.emit('result', transcript);
+        this.emit('result', result[0].transcript);
       }
     });
 
-    this.recognition!.addEventListener('error', (event: SpeechRecognitionErrorEvent) => {
+    this.recognition.addEventListener('error', (event: SpeechRecognitionErrorEvent) => {
       this.emit('error', new Error(`Speech recognition error: ${event.error} - ${event.message}`));
     });
   }
@@ -131,60 +100,109 @@ export class VoiceService extends EventEmitter {
   private async setupAudioMonitoring() {
     try {
       this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.audioContext = new AudioContext();
-      const source = this.audioContext.createMediaStreamSource(this.mediaStream);
-      this.analyzer = this.audioContext.createAnalyser();
-      this.analyzer.fftSize = 256;
-      source.connect(this.analyzer);
+      if (!this.mediaStream) {
+        throw new Error('Failed to get audio stream');
+      }
 
-      const dataArray = new Uint8Array(this.analyzer.frequencyBinCount);
+      this.audioContext = new AudioContext();
+      if (!this.audioContext) {
+        throw new Error('Failed to create audio context');
+      }
+
+      this.analyser = this.audioContext.createAnalyser();
+      if (!this.analyser) {
+        throw new Error('Failed to create audio analyser');
+      }
       
-      this.soundMonitorInterval = setInterval(() => {
-        if (this.analyzer && this.isListening) {
-          this.analyzer.getByteFrequencyData(dataArray);
-          const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-          const normalizedLevel = average / 255; // Normalize to 0-1 range
-          this.emit('soundLevel', normalizedLevel);
+      const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+      source.connect(this.analyser);
+      
+      this.analyser.fftSize = 256;
+      const bufferLength = this.analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      this.soundLevelInterval = setInterval(() => {
+        if (this.analyser) {
+          this.analyser.getByteFrequencyData(dataArray);
+          const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+          this.emit('soundLevel', average / 255); // Normalize to 0-1
         }
       }, 100);
     } catch (error) {
-      this.emit('error', new Error(`Failed to initialize audio monitoring: ${error}`));
+      this.emit('error', new Error(`Failed to setup audio monitoring: ${error}`));
     }
+  }
+
+  private stopAudioMonitoring() {
+    if (this.soundLevelInterval) {
+      clearInterval(this.soundLevelInterval);
+      this.soundLevelInterval = null;
+    }
+    
+    if (this.mediaStream) {
+      this.mediaStream.getTracks().forEach(track => track.stop());
+      this.mediaStream = null;
+    }
+    
+    if (this.audioContext) {
+      this.audioContext.close();
+      this.audioContext = null;
+    }
+    
+    this.analyser = null;
+  }
+
+  async isSupported(): Promise<boolean> {
+    return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  }
+
+  async startRecording(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      if (!this.recognition) {
+        reject(new Error('Speech recognition is not initialized'));
+        return;
+      }
+
+      const handleResult = (transcript: string) => {
+        cleanup();
+        resolve(transcript);
+      };
+
+      const handleError = (error: Error) => {
+        cleanup();
+        reject(error);
+      };
+
+      const cleanup = () => {
+        this.removeListener('result', handleResult);
+        this.removeListener('error', handleError);
+        this.stop();
+      };
+
+      this.once('result', handleResult);
+      this.once('error', handleError);
+
+      this.start();
+    });
   }
 
   async start() {
     try {
       await this.setupAudioMonitoring();
-      this.recognition!.start();
+      if (!this.recognition) {
+        throw new Error('Speech recognition is not initialized');
+      }
+      this.recognition.start();
     } catch (error) {
       this.emit('error', new Error(`Failed to start voice service: ${error}`));
     }
   }
 
   stop() {
-    this.recognition!.stop();
-    
-    if (this.soundMonitorInterval) {
-      clearInterval(this.soundMonitorInterval);
-      this.soundMonitorInterval = null;
+    if (this.recognition) {
+      this.recognition.stop();
     }
-
-    if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach(track => track.stop());
-      this.mediaStream = null;
-    }
-
-    if (this.audioContext) {
-      this.audioContext.close();
-      this.audioContext = null;
-    }
-
-    this.analyzer = null;
-    this.isListening = false;
-  }
-
-  isActive(): boolean {
-    return this.isListening;
+    this.stopAudioMonitoring();
   }
 
   // Type declaration for EventEmitter methods
@@ -200,7 +218,7 @@ export class VoiceService extends EventEmitter {
     return super.once(event, listener);
   }
 
-  off<K extends keyof VoiceServiceEvents>(event: K, listener: VoiceServiceEvents[K]): this {
-    return super.off(event, listener);
+  removeListener<K extends keyof VoiceServiceEvents>(event: K, listener: VoiceServiceEvents[K]): this {
+    return super.removeListener(event, listener);
   }
 } 

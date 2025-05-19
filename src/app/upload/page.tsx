@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileUpload } from '@/components/FileUpload';
+import { FileUpload } from '@/components/upload/FileUpload';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ErrorDisplay } from '@/components/ErrorDisplay';
 import { uploadFile } from '@/services/fileStorage';
@@ -21,70 +21,60 @@ export default function UploadPage() {
 
   // Poll for parsing status
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let mounted = true;
+    let interval: NodeJS.Timeout | undefined;
+
+    const checkStatus = async () => {
+      if (!uploadId || !mounted) return;
+
+      try {
+        const status = await getParsingStatus(uploadId);
+        if (!mounted) return;
+
+        setParsingStatus(status);
+
+        if (status === 'completed') {
+          router.push('/dashboard');
+        } else if (status === 'error') {
+          setError('Error parsing document');
+        }
+      } catch (err) {
+        if (!mounted) return;
+        console.error('Error checking parsing status:', err);
+        setError('Error checking parsing status');
+      }
+    };
 
     if (uploadId && parsingStatus !== 'completed' && parsingStatus !== 'error') {
-      interval = setInterval(async () => {
-        try {
-          const status = await getParsingStatus(uploadId);
-          setParsingStatus(status);
-
-          if (status === 'completed' || status === 'error') {
-            clearInterval(interval);
-            if (status === 'completed') {
-              router.push('/dashboard');
-            }
-          }
-        } catch (err) {
-          console.error('Error checking parsing status:', err);
-          clearInterval(interval);
-        }
-      }, 2000);
+      // Initial check
+      checkStatus();
+      // Set up polling
+      interval = setInterval(checkStatus, 2000);
     }
 
     return () => {
+      mounted = false;
       if (interval) {
         clearInterval(interval);
       }
     };
   }, [uploadId, parsingStatus, router]);
 
-  const handleFileSelect = async (file: File) => {
-    if (!user) {
-      setError('Please sign in to upload files');
-      return;
-    }
-
+  const handleUpload = async (file: File) => {
     setIsUploading(true);
     setError(null);
     setUploadProgress(0);
-    setParsingStatus(null);
 
     try {
-      const result = await uploadFile(file, user.id);
+      const result = await uploadFile(file, (progress) => {
+        setUploadProgress(progress);
+      });
 
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      setUploadId(result.data?.id || null);
-
-      // Simulate upload progress
-      const interval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev === null || prev >= 90) return prev;
-          return prev + 10;
-        });
-      }, 500);
-
-      // Clear interval and set to 100% when upload is complete
-      clearInterval(interval);
-      setUploadProgress(100);
+      setUploadId(result.id);
       setParsingStatus('processing');
-
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload file');
-      setParsingStatus(null);
+      console.error('Upload error:', err);
+      setError('Failed to upload file');
     } finally {
       setIsUploading(false);
     }
@@ -92,51 +82,37 @@ export default function UploadPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Upload Document</h1>
-      
+      <h1 className="text-3xl font-bold mb-8">Upload Document</h1>
+
       {error && (
         <ErrorDisplay
           message={error}
-          className="mb-4"
+          className="mb-6"
           onDismiss={() => setError(null)}
         />
       )}
 
-      <div className="max-w-2xl mx-auto">
+      <div className="space-y-8">
         <FileUpload
-          onFileSelect={handleFileSelect}
-          className={isUploading || parsingStatus === 'processing' ? 'opacity-50 pointer-events-none' : ''}
+          onUploadComplete={handleUpload}
+          maxSize={10 * 1024 * 1024} // 10MB
         />
 
         {(isUploading || parsingStatus === 'processing') && (
-          <div className="mt-4">
-            <ProgressBar
-              progress={uploadProgress || 0}
-              showPercentage
-            />
-            <p className="text-sm text-gray-600 mt-2 text-center">
-              {isUploading ? 'Uploading file...' : 'Processing document...'}
+          <div className="space-y-4">
+            {uploadProgress !== null && (
+              <ProgressBar
+                progress={uploadProgress}
+                label={isUploading ? 'Uploading...' : 'Processing...'}
+              />
+            )}
+            <p className="text-sm text-gray-600">
+              {isUploading
+                ? 'Uploading your document...'
+                : 'Processing your document...'}
             </p>
           </div>
         )}
-
-        {parsingStatus === 'error' && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-600 text-sm">
-              Failed to process document. Please try uploading again.
-            </p>
-          </div>
-        )}
-
-        <div className="mt-8">
-          <h2 className="text-lg font-semibold mb-4">Upload Guidelines</h2>
-          <ul className="list-disc list-inside space-y-2 text-gray-600">
-            <li>Maximum file size: {formatFileSize(50 * 1024 * 1024)}</li>
-            <li>Supported formats: PDF, PowerPoint (PPTX), Word (DOCX)</li>
-            <li>Files should be clear and legible</li>
-            <li>Avoid uploading files with sensitive personal information</li>
-          </ul>
-        </div>
       </div>
     </div>
   );

@@ -11,10 +11,6 @@ import { useAuth } from '@/hooks/useAuth';
 import type { InvestorProfile, InvestorProfileInput } from '@/types/investor';
 import { Plus } from 'lucide-react';
 
-export const metadata = {
-  title: 'Investor Profiles | DealReel',
-  description: 'Manage your investor profiles and preferences',
-};
 
 export default function InvestorProfilesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);

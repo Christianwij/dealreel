@@ -1,21 +1,38 @@
-export interface Briefing {
-  id: string;
-  title: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  created_at: string;
-  updated_at: string;
-  document_id: string;
-  user_id: string;
-  script: string;
-  video_url: string;
-  documents: {
-    title: string;
-    file_type: string;
+import { Database } from './supabase';
+
+export interface BriefingMetadata {
+  averageRating?: number;
+  totalRatings?: number;
+  lastRatedAt?: string;
+  processingStatus?: {
+    stage: 'queued' | 'processing' | 'completed' | 'failed';
+    progress?: number;
+    error?: string;
   };
-  metadata: {
-    rating?: number;
-    averageRating?: number;
+  videoGeneration?: {
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    duration?: number;
+    format?: string;
+    error?: string;
   };
+  [key: string]: unknown;
+}
+
+export type BriefingStatus = 'draft' | 'processing' | 'completed' | 'failed';
+
+export interface Briefing extends Omit<Database['public']['Tables']['briefings']['Row'], 'metadata' | 'status'> {
+  metadata: BriefingMetadata;
+  status: BriefingStatus;
+  document?: Database['public']['Tables']['documents']['Row'];
+}
+
+export interface BriefingWithDocument extends Briefing {
+  document: Database['public']['Tables']['documents']['Row'];
+}
+
+export interface BriefingInput extends Omit<Database['public']['Tables']['briefings']['Insert'], 'metadata' | 'status'> {
+  metadata?: BriefingMetadata;
+  status?: BriefingStatus;
 }
 
 export interface BriefingCardProps {

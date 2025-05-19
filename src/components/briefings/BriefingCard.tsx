@@ -7,18 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Database } from '@/types/supabase';
-
-type Briefing = Database['public']['Tables']['briefings']['Row'] & {
-  documents: {
-    title: string;
-    file_type: string;
-  };
-  metadata: {
-    averageRating?: number;
-    [key: string]: any;
-  };
-};
+import type { Briefing } from '@/types/briefing';
 
 interface BriefingCardProps {
   briefing: Briefing;
@@ -59,21 +48,34 @@ export function BriefingCard({ briefing, onDelete }: BriefingCardProps) {
     });
   };
 
+  const getBadgeVariant = (status: Briefing['status']) => {
+    switch (status) {
+      case 'completed':
+        return 'default';
+      case 'processing':
+        return 'secondary';
+      case 'failed':
+        return 'destructive';
+      default:
+        return 'outline';
+    }
+  };
+
   return (
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-lg font-semibold">{briefing.title}</CardTitle>
-        <Badge 
-          variant={briefing.status === 'completed' ? 'default' : 'secondary'}
-        >
+        <Badge variant={getBadgeVariant(briefing.status)}>
           {briefing.status}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center space-x-4">
-          <FileText className="h-5 w-5 text-muted-foreground" />
-          <span className="text-sm">{briefing.documents.title}</span>
-        </div>
+        {briefing.document && (
+          <div className="flex items-center space-x-4">
+            <FileText className="h-5 w-5 text-muted-foreground" />
+            <span className="text-sm">{briefing.document.title}</span>
+          </div>
+        )}
         
         {briefing.video_url && (
           <Dialog open={showVideo} onOpenChange={setShowVideo}>
@@ -102,13 +104,26 @@ export function BriefingCard({ briefing, onDelete }: BriefingCardProps) {
         <div className="flex items-center space-x-2">
           <Star className="h-4 w-4 text-yellow-400" />
           <span className="text-sm text-muted-foreground">
-            Average Rating: {briefing.metadata?.averageRating || 'No ratings yet'}
+            Average Rating: {briefing.metadata.averageRating ?? 'No ratings yet'}
+            {briefing.metadata.totalRatings && ` (${briefing.metadata.totalRatings} ratings)`}
           </span>
         </div>
 
         {briefing.script && (
           <p className="text-sm text-muted-foreground line-clamp-3">
             {briefing.script}
+          </p>
+        )}
+
+        {briefing.metadata.processingStatus?.stage === 'processing' && (
+          <div className="text-sm text-muted-foreground">
+            Processing: {briefing.metadata.processingStatus.progress}%
+          </div>
+        )}
+
+        {briefing.metadata.processingStatus?.error && (
+          <p className="text-sm text-destructive">
+            Error: {briefing.metadata.processingStatus.error}
           </p>
         )}
       </CardContent>

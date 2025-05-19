@@ -10,16 +10,10 @@ import { Loader2, Upload, FileText, Star } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { supabase } from '@/lib/supabaseClient'
 import { DashboardShell } from '@/components/dashboard/DashboardShell'
-
-interface DashboardData {
-  recentUploads: any[]
-  briefings: any[]
-  ratings: any[]
-  profiles: any[]
-}
+import { DashboardData, Document, Briefing, Rating } from '@/types/dashboard'
 
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -31,6 +25,10 @@ export default function DashboardPage() {
   })
 
   useEffect(() => {
+    // Wait for auth to be initialized
+    if (authLoading) return
+
+    // Redirect if not authenticated
     if (!user) {
       router.push('/login')
       return
@@ -38,12 +36,19 @@ export default function DashboardPage() {
 
     async function fetchDashboardData() {
       try {
+        // We know user is not null here because of the check above
+        const userId = user!.id
         const [uploadsData, briefingsData, ratingsData, profilesData] = await Promise.all([
-          supabase.from('documents').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
-          supabase.from('briefings').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
-          supabase.from('ratings').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
-          supabase.from('profiles').select('*').eq('id', user.id),
+          supabase.from('documents').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(5),
+          supabase.from('briefings').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(5),
+          supabase.from('ratings').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(5),
+          supabase.from('profiles').select('*').eq('id', userId),
         ])
+
+        if (uploadsData.error) throw new Error(uploadsData.error.message)
+        if (briefingsData.error) throw new Error(briefingsData.error.message)
+        if (ratingsData.error) throw new Error(ratingsData.error.message)
+        if (profilesData.error) throw new Error(profilesData.error.message)
 
         setData({
           recentUploads: uploadsData.data || [],
@@ -64,9 +69,10 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData()
-  }, [user, router, toast])
+  }, [user, router, toast, authLoading])
 
-  if (loading) {
+  // Show loading state while auth is initializing or data is loading
+  if (authLoading || loading) {
     return (
       <DashboardShell>
         <div className="flex h-[450px] items-center justify-center">
@@ -74,6 +80,11 @@ export default function DashboardPage() {
         </div>
       </DashboardShell>
     )
+  }
+
+  // Show login redirect message if not authenticated
+  if (!user) {
+    return null // Router will handle redirect
   }
 
   return (
@@ -131,7 +142,7 @@ export default function DashboardPage() {
               </Card>
             ) : (
               <div className="grid gap-4">
-                {data.recentUploads.map((upload) => (
+                {data.recentUploads.map((upload: Document) => (
                   <Card key={upload.id}>
                     <CardContent className="flex items-center justify-between p-4">
                       <div className="flex items-center space-x-4">
@@ -162,7 +173,7 @@ export default function DashboardPage() {
               </Card>
             ) : (
               <div className="grid gap-4">
-                {data.briefings.map((briefing) => (
+                {data.briefings.map((briefing: Briefing) => (
                   <Card key={briefing.id}>
                     <CardContent className="flex items-center justify-between p-4">
                       <div className="flex items-center space-x-4">
@@ -193,7 +204,7 @@ export default function DashboardPage() {
               </Card>
             ) : (
               <div className="grid gap-4">
-                {data.ratings.map((rating) => (
+                {data.ratings.map((rating: Rating) => (
                   <Card key={rating.id}>
                     <CardContent className="flex items-center justify-between p-4">
                       <div className="flex items-center space-x-4">

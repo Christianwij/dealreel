@@ -3,63 +3,73 @@ import { v4 as uuidv4 } from 'uuid';
 import { validateFile, ValidationResult } from '@/utils/fileValidation';
 import { initiateDocumentParsing } from './documentParser';
 import { env } from '@/config/env';
+import { supabase } from '@/lib/supabase';
 
-const supabase = createClient(
+const supabaseClient = createClient(
   env.supabase.url,
   env.supabase.anonKey
 );
 
 export interface UploadResult {
-  success: boolean;
+  id: string;
   error?: string;
-  data?: {
-    id: string;
-    path: string;
-    size: number;
-    type: string;
-  };
 }
 
-export const uploadFile = async (file: File, userId: string): Promise<UploadResult> => {
-  // Validate file first
-  const validation: ValidationResult = validateFile(file);
-  if (!validation.valid) {
-    return {
-      success: false,
-      error: validation.error
-    };
-  }
-
+export async function uploadFile(
+  file: File,
+  onProgress: (progress: number) => void
+): Promise<UploadResult> {
   try {
-    // Generate unique file path
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${uuidv4()}.${fileExt}`;
-    const filePath = `${userId}/${fileName}`;
-
-    // Upload to Supabase Storage
-    const { error: uploadError } = await supabase.storage
-      .from('documents')
-      .upload(filePath, file);
-
-    if (uploadError) {
-      throw uploadError;
+    // Validate file first
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      throw new Error(validation.error);
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
+    // Generate a unique file name
+    const fileName = `${Date.now()}-${file.name}`;
+    const filePath = `uploads/${fileName}`;
+
+    // Create a ReadableStream from the file
+    const fileStream = file.stream();
+    const reader = fileStream.getReader();
+    const fileSize = file.size;
+    let uploadedBytes = 0;
+
+    // Create a new ReadableStream that will track progress
+    const trackingStream = new ReadableStream({
+      async start(controller) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          uploadedBytes += value.length;
+          const progress = (uploadedBytes / fileSize) * 100;
+          onProgress(progress);
+          
+          controller.enqueue(value);
+        }
+        controller.close();
+      }
+    });
+
+    // Upload file to Supabase Storage
+    const { data, error } = await supabase.storage
       .from('documents')
-      .getPublicUrl(filePath);
+      .upload(filePath, new Blob([await new Response(trackingStream).blob()]), {
+        upsert: false
+      });
+
+    if (error) throw error;
 
     // Create database record
     const { data: dbRecord, error: dbError } = await supabase
-      .from('uploads')
+      .from('document_uploads')
       .insert({
-        user_id: userId,
-        filename: file.name,
+        file_name: file.name,
         file_type: file.type,
         file_size: file.size,
         storage_path: filePath,
-        status: 'pending'
       })
       .select()
       .single();
@@ -78,13 +88,13 @@ export const uploadFile = async (file: File, userId: string): Promise<UploadResu
         dbRecord.id,
         filePath,
         file.type,
-        userId
+        dbRecord.user_id
       );
     } catch (parseError) {
       console.error('Failed to initiate document parsing:', parseError);
       // Update upload status to error
       await supabase
-        .from('uploads')
+        .from('document_uploads')
         .update({
           status: 'error',
           error_message: 'Failed to initiate document parsing'
@@ -94,22 +104,13 @@ export const uploadFile = async (file: File, userId: string): Promise<UploadResu
     }
 
     return {
-      success: true,
-      data: {
-        id: dbRecord.id,
-        path: publicUrl,
-        size: file.size,
-        type: file.type
-      }
+      id: dbRecord.id,
     };
-
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to upload file'
-    };
+    console.error('Upload error:', error);
+    throw error;
   }
-};
+}
 
 export const deleteFile = async (filePath: string): Promise<boolean> => {
   try {

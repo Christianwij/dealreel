@@ -4,65 +4,69 @@ import { ThumbUp, ThumbDown, Flag } from '@mui/icons-material';
 import type { QAResponse } from '../../types/qa';
 
 interface Props {
-  answer: QAResponse;
+  answer: QAResponse | null;
   onFeedback: (type: 'like' | 'dislike' | 'report') => void;
 }
 
 const AnswerDisplay: React.FC<Props> = ({ answer, onFeedback }) => {
-  const [feedbackGiven, setFeedbackGiven] = useState(false);
-
-  const handleFeedback = (type: 'like' | 'dislike' | 'report') => {
-    if (!feedbackGiven) {
-      onFeedback(type);
-      setFeedbackGiven(true);
-    }
-  };
-
-  if (answer.error) {
+  if (!answer) {
     return (
-      <Box sx={{ mt: 2, color: 'error.main' }}>
-        <Typography variant="body1">{answer.error}</Typography>
+      <Box display="flex" justifyContent="center" p={2}>
+        <Typography color="textSecondary">No answer available</Typography>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ mt: 2 }}>
-      <Typography variant="body1">{answer.answer}</Typography>
-      <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+    <Box p={2} border={1} borderColor="divider" borderRadius={1}>
+      <Typography variant="body1" gutterBottom>
+        {answer.answer}
+      </Typography>
+
+      <Box mt={2}>
+        <Typography variant="subtitle2" color="textSecondary">
+          Sources:
+        </Typography>
         {answer.sources.map((source, index) => (
-          <Chip key={index} label={source} variant="outlined" size="small" />
+          <Box key={index} mt={1}>
+            <Chip
+              label={source}
+              size="small"
+              variant="outlined"
+            />
+          </Box>
         ))}
       </Box>
-      <Box sx={{ mt: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
-        <Typography variant="caption" color="text.secondary">
+
+      <Box mt={2} display="flex" alignItems="center" gap={2}>
+        <Typography variant="body2" color="textSecondary">
           Confidence: {Math.round(answer.confidence * 100)}%
         </Typography>
-        <Box sx={{ flexGrow: 1 }} />
-        <IconButton
-          size="small"
-          onClick={() => handleFeedback('like')}
-          disabled={feedbackGiven}
-          color={feedbackGiven ? 'primary' : 'default'}
-        >
-          <ThumbUp fontSize="small" />
-        </IconButton>
-        <IconButton
-          size="small"
-          onClick={() => handleFeedback('dislike')}
-          disabled={feedbackGiven}
-          color={feedbackGiven ? 'error' : 'default'}
-        >
-          <ThumbDown fontSize="small" />
-        </IconButton>
-        <IconButton
-          size="small"
-          onClick={() => handleFeedback('report')}
-          disabled={feedbackGiven}
-          color={feedbackGiven ? 'warning' : 'default'}
-        >
-          <Flag fontSize="small" />
-        </IconButton>
+        
+        <Box display="flex" gap={1}>
+          <IconButton
+            aria-label="thumbs up"
+            onClick={() => onFeedback('like')}
+            size="small"
+          >
+            <ThumbUp fontSize="small" />
+          </IconButton>
+          <IconButton
+            aria-label="thumbs down"
+            onClick={() => onFeedback('dislike')}
+            size="small"
+          >
+            <ThumbDown fontSize="small" />
+          </IconButton>
+          <IconButton
+            aria-label="report"
+            onClick={() => onFeedback('report')}
+            size="small"
+            color="error"
+          >
+            <Flag fontSize="small" />
+          </IconButton>
+        </Box>
       </Box>
     </Box>
   );

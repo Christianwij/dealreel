@@ -17,19 +17,11 @@ const AnswerDisplay: React.FC<Props> = ({ answer, onFeedback }) => {
     );
   }
 
-  if (answer.error) {
-    return (
-      <Box p={2}>
-        <Typography color="error">{answer.error}</Typography>
-      </Box>
-    );
-  }
-
   return (
     <Paper elevation={2}>
       <Box p={2}>
         <Typography variant="body1" gutterBottom>
-          {answer.text}
+          {answer.answer}
         </Typography>
 
         <Box mt={2}>
@@ -39,40 +31,42 @@ const AnswerDisplay: React.FC<Props> = ({ answer, onFeedback }) => {
           {answer.sources.map((source, index) => (
             <Box key={index} display="flex" alignItems="center" mt={1}>
               <Typography variant="body2">
-                {source.text} ({Math.round(source.confidence * 100)}%)
+                {source}
               </Typography>
             </Box>
           ))}
         </Box>
 
-        <Box mt={2} display="flex" gap={1}>
-          <IconButton
-            aria-label="thumbs up"
-            onClick={() => onFeedback('like')}
-            size="small"
-          >
-            <ThumbUp />
-          </IconButton>
-          <IconButton
-            aria-label="thumbs down"
-            onClick={() => onFeedback('dislike')}
-            size="small"
-          >
-            <ThumbDown />
-          </IconButton>
-          <IconButton
-            aria-label="report"
-            onClick={() => onFeedback('report')}
-            size="small"
-            color="error"
-          >
-            <Flag />
-          </IconButton>
+        <Box mt={2} display="flex" alignItems="center" gap={2}>
+          <Typography variant="body2" color="textSecondary">
+            Confidence: {Math.round(answer.confidence * 100)}%
+          </Typography>
+          
+          <Box display="flex" gap={1}>
+            <IconButton
+              aria-label="thumbs up"
+              onClick={() => onFeedback('like')}
+              size="small"
+            >
+              <ThumbUp />
+            </IconButton>
+            <IconButton
+              aria-label="thumbs down"
+              onClick={() => onFeedback('dislike')}
+              size="small"
+            >
+              <ThumbDown />
+            </IconButton>
+            <IconButton
+              aria-label="report"
+              onClick={() => onFeedback('report')}
+              size="small"
+              color="error"
+            >
+              <Flag />
+            </IconButton>
+          </Box>
         </Box>
-
-        <Typography variant="caption" color="textSecondary" display="block" mt={1}>
-          {new Date(answer.timestamp).toLocaleTimeString()}
-        </Typography>
       </Box>
     </Paper>
   );

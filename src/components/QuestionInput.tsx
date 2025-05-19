@@ -3,28 +3,26 @@ import { Box, TextField, IconButton, CircularProgress } from '@mui/material';
 import { Send, Mic } from '@mui/icons-material';
 
 interface Props {
-  question: string;
-  onChange: (question: string) => void;
+  value: string;
+  onChange: (value: string) => void;
   onSubmit: (question: string) => void;
-  onVoiceInput: () => void;
-  isLoading: boolean;
-  isVoiceSupported: boolean;
-  isListening: boolean;
+  onVoiceInput?: () => Promise<void>;
+  isListening?: boolean;
+  isLoading?: boolean;
 }
 
 export const QuestionInput: React.FC<Props> = ({
-  question,
+  value,
   onChange,
   onSubmit,
   onVoiceInput,
-  isLoading,
-  isVoiceSupported,
-  isListening
+  isListening = false,
+  isLoading = false,
 }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (question.trim() && !isLoading) {
-      onSubmit(question.trim());
+    if (value.trim() && !isLoading) {
+      onSubmit(value.trim());
     }
   };
 
@@ -32,53 +30,39 @@ export const QuestionInput: React.FC<Props> = ({
     <Box
       component="form"
       onSubmit={handleSubmit}
-      sx={{
-        display: 'flex',
-        gap: 1,
-        alignItems: 'center',
-        width: '100%',
-        mt: 2
-      }}
+      display="flex"
+      gap={1}
     >
       <TextField
         fullWidth
-        variant="outlined"
-        placeholder="Ask a question..."
-        value={question}
+        value={value}
         onChange={(e) => onChange(e.target.value)}
-        disabled={isLoading}
-        sx={{
-          '& .MuiOutlinedInput-root': {
-            borderRadius: '20px'
-          }
+        placeholder="Ask a question..."
+        disabled={isLoading || isListening}
+        InputProps={{
+          endAdornment: isLoading && (
+            <CircularProgress size={20} />
+          ),
         }}
       />
       
-      {isVoiceSupported && (
+      <IconButton
+        type="submit"
+        disabled={!value.trim() || isLoading || isListening}
+        color="primary"
+      >
+        <Send />
+      </IconButton>
+
+      {onVoiceInput && (
         <IconButton
-          onClick={onVoiceInput}
+          onClick={() => onVoiceInput()}
           disabled={isLoading}
-          color={isListening ? 'primary' : 'default'}
-          sx={{
-            animation: isListening ? 'pulse 1.5s infinite' : 'none',
-            '@keyframes pulse': {
-              '0%': { transform: 'scale(1)' },
-              '50%': { transform: 'scale(1.2)' },
-              '100%': { transform: 'scale(1)' }
-            }
-          }}
+          color={isListening ? 'error' : 'primary'}
         >
           <Mic />
         </IconButton>
       )}
-
-      <IconButton
-        type="submit"
-        disabled={!question.trim() || isLoading}
-        color="primary"
-      >
-        {isLoading ? <CircularProgress size={24} /> : <Send />}
-      </IconButton>
     </Box>
   );
 }; 

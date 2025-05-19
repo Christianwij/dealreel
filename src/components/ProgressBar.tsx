@@ -1,30 +1,20 @@
+import { Progress } from '@/components/ui/progress';
+
 interface ProgressBarProps {
   progress: number;
-  showPercentage?: boolean;
+  label?: string;
   className?: string;
 }
 
-export const ProgressBar: React.FC<ProgressBarProps> = ({
-  progress,
-  showPercentage = false,
-  className = '',
-}) => {
-  // Ensure progress is between 0 and 100
-  const normalizedProgress = Math.min(Math.max(progress, 0), 100);
-
+export function ProgressBar({ progress, label, className = '' }: ProgressBarProps) {
   return (
-    <div className={`w-full ${className}`}>
-      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-blue-600 transition-all duration-300 ease-out rounded-full"
-          style={{ width: `${normalizedProgress}%` }}
-        />
-      </div>
-      {showPercentage && (
-        <div className="text-sm text-gray-600 mt-1 text-right">
-          {Math.round(normalizedProgress)}%
-        </div>
+    <div className={className}>
+      <Progress value={progress} className="w-full" />
+      {label && (
+        <p className="mt-2 text-sm text-center text-gray-600">
+          {label} {Math.round(progress)}%
+        </p>
       )}
     </div>
   );
-}; 
+} 

@@ -10,6 +10,7 @@ declare global {
     interface Chainable {
       // Add custom command types here
       mount: typeof mount
+      getByTestId(selector: string): Chainable<JQuery<HTMLElement>>
     }
   }
 }

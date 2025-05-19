@@ -29,7 +29,7 @@ export interface QAFeedback {
   briefingId: string;
   question: string;
   answer: string;
-  feedback: 'like' | 'dislike';
+  feedback: 'like' | 'dislike' | 'report';
 }
 
 export interface QAQuestion {

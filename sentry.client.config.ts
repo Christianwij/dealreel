@@ -8,9 +8,6 @@ Sentry.init({
   // We recommend adjusting this value in production
   tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
   
-  // Enable performance monitoring
-  enableTracing: true,
-  
   // Capture Replay for 10% of all sessions,
   // plus for 100% of sessions with an error
   replaysSessionSampleRate: 0.1,

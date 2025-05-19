@@ -3,7 +3,6 @@ import { useEffect } from 'react'
 import * as Sentry from '@sentry/nextjs'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { Analytics } from '@vercel/analytics/react'
-import { Toaster } from 'react-hot-toast'
 
 import '@/styles/globals.css'
 
@@ -47,7 +46,6 @@ function MyApp({ Component, pageProps }: AppProps) {
     <ErrorBoundary>
       <Component {...pageProps} />
       <Analytics />
-      <Toaster position="bottom-right" />
     </ErrorBoundary>
   )
 }

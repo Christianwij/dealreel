@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { ScriptService } from '@/services/scriptService';
@@ -5,11 +7,6 @@ import { ScriptViewer } from '@/components/ScriptViewer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import type { ScriptRecord } from '@/types/script';
-
-export const metadata = {
-  title: 'Generated Scripts | DealReel',
-  description: 'View your generated investor scripts',
-};
 
 export default function ScriptsPage() {
   const [scripts, setScripts] = useState<ScriptRecord[]>([]);

@@ -3,7 +3,13 @@ import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
-type Briefing = Database['public']['Tables']['briefings']['Row'];
+type Briefing = Database['public']['Tables']['briefings']['Row'] & {
+  document?: Database['public']['Tables']['documents']['Row'];
+  metadata: {
+    averageRating?: number;
+    [key: string]: any;
+  };
+};
 
 export function useBriefings() {
   const { user } = useAuth();
@@ -25,9 +31,13 @@ export function useBriefings() {
         .from('briefings')
         .select(`
           *,
-          documents (
+          document:documents (
+            id,
             title,
-            file_type
+            file_type,
+            file_size,
+            status,
+            metadata
           )
         `)
         .eq('user_id', user.id)
@@ -69,13 +79,23 @@ export function useBriefings() {
     };
   }, [fetchBriefings, user?.id]);
 
-  const addBriefing = async (briefing: Omit<Briefing, 'id' | 'created_at' | 'updated_at'>) => {
+  const addBriefing = async (briefing: Omit<Database['public']['Tables']['briefings']['Insert'], 'id' | 'created_at' | 'updated_at'>) => {
     try {
       setError(null);
       const { data, error: supabaseError } = await supabase
         .from('briefings')
         .insert([briefing])
-        .select()
+        .select(`
+          *,
+          document:documents (
+            id,
+            title,
+            file_type,
+            file_size,
+            status,
+            metadata
+          )
+        `)
         .single();
 
       if (supabaseError) {
@@ -89,14 +109,24 @@ export function useBriefings() {
     }
   };
 
-  const updateBriefing = async (id: string, updates: Partial<Briefing>) => {
+  const updateBriefing = async (id: string, updates: Partial<Database['public']['Tables']['briefings']['Update']>) => {
     try {
       setError(null);
       const { data, error: supabaseError } = await supabase
         .from('briefings')
         .update(updates)
         .eq('id', id)
-        .select()
+        .select(`
+          *,
+          document:documents (
+            id,
+            title,
+            file_type,
+            file_size,
+            status,
+            metadata
+          )
+        `)
         .single();
 
       if (supabaseError) {

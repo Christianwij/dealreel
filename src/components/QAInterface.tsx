@@ -6,7 +6,8 @@ import { ConversationHistory } from './ConversationHistory';
 import PerformanceMetrics from './PerformanceMetrics';
 import { VoiceService } from '../services/voiceService';
 import { QAService } from '../services/qaService';
-import type { QAResponse, QAHistoryItem } from '../types/qa';
+import { ErrorDisplay } from './ErrorDisplay';
+import type { QAResponse, QAHistoryItem, QAFeedback } from '../types/qa';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -18,17 +19,27 @@ interface Props {
   briefingId: string;
 }
 
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
-  <div role="tabpanel" hidden={value !== index}>
-    {value === index && <Box sx={{ p: 2 }}>{children}</Box>}
-  </div>
-);
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`qa-tabpanel-${index}`}
+      aria-labelledby={`qa-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box p={3}>{children}</Box>}
+    </div>
+  );
+}
 
 export const QAInterface: React.FC<Props> = ({ briefingId }) => {
   const [currentTab, setCurrentTab] = useState(0);
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentAnswer, setCurrentAnswer] = useState<QAResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<QAHistoryItem[]>([]);
   const [isVoiceSupported, setIsVoiceSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -48,6 +59,7 @@ export const QAInterface: React.FC<Props> = ({ briefingId }) => {
         setHistory(data);
       } catch (error) {
         console.error('Failed to load history:', error);
+        setError('Failed to load conversation history');
       }
     };
 
@@ -57,6 +69,7 @@ export const QAInterface: React.FC<Props> = ({ briefingId }) => {
 
   const handleQuestionSubmit = async (submittedQuestion: string) => {
     setIsLoading(true);
+    setError(null);
     try {
       const answer = await qaService.askQuestion(briefingId, submittedQuestion);
       setCurrentAnswer(answer);
@@ -72,12 +85,9 @@ export const QAInterface: React.FC<Props> = ({ briefingId }) => {
       };
       setHistory(prev => [historyItem, ...prev]);
     } catch (error) {
-      setCurrentAnswer({
-        answer: '',
-        sources: [],
-        confidence: 0,
-        error: 'Failed to get answer. Please try again.'
-      });
+      console.error('Failed to get answer:', error);
+      setError(error instanceof Error ? error.message : 'Failed to get answer. Please try again.');
+      setCurrentAnswer(null);
     } finally {
       setIsLoading(false);
     }
@@ -93,60 +103,79 @@ export const QAInterface: React.FC<Props> = ({ briefingId }) => {
       await handleQuestionSubmit(text);
     } catch (error) {
       console.error('Voice input error:', error);
+      setError(error instanceof Error ? error.message : 'Failed to process voice input');
     } finally {
       setIsListening(false);
     }
   };
 
   const handleFeedback = async (type: 'like' | 'dislike' | 'report') => {
-    if (!currentAnswer) return;
+    if (!currentAnswer || !history.length) return;
 
     try {
-      await qaService.submitFeedback({
-        questionId: history[0]?.id || Date.now().toString(),
-        rating: type === 'like' ? 1 : type === 'dislike' ? -1 : 0,
-        userId: 'anonymous',
-        comment: type === 'report' ? 'Reported by user' : undefined
-      });
+      const feedback: QAFeedback = {
+        briefingId,
+        question: history[0].question,
+        answer: currentAnswer.answer,
+        feedback: type
+      };
+
+      await qaService.submitFeedback(feedback);
     } catch (error) {
       console.error('Failed to submit feedback:', error);
+      setError('Failed to submit feedback');
     }
   };
 
   const handleHistoryDelete = async (id: string) => {
     try {
       setHistory(prev => prev.filter(item => item.id !== id));
-      // Optionally: Add API call to delete from backend
+      await qaService.deleteHistory(briefingId);
     } catch (error) {
       console.error('Failed to delete history item:', error);
+      setError('Failed to delete history item');
     }
   };
 
   return (
-    <Paper sx={{ width: '100%', minHeight: '600px' }}>
+    <Paper elevation={2}>
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs value={currentTab} onChange={(_, newValue) => setCurrentTab(newValue)}>
-          <Tab label="Ask" />
-          <Tab label="History" />
-          <Tab label="Metrics" />
+        <Tabs
+          value={currentTab}
+          onChange={(_, newValue) => setCurrentTab(newValue)}
+          aria-label="QA Interface tabs"
+        >
+          <Tab label="Ask Questions" id="qa-tab-0" aria-controls="qa-tabpanel-0" />
+          <Tab label="History" id="qa-tab-1" aria-controls="qa-tabpanel-1" />
+          <Tab label="Performance" id="qa-tab-2" aria-controls="qa-tabpanel-2" />
         </Tabs>
       </Box>
 
+      {error && (
+        <Box p={2}>
+          <ErrorDisplay
+            message={error}
+            onDismiss={() => setError(null)}
+          />
+        </Box>
+      )}
+
       <TabPanel value={currentTab} index={0}>
         <QuestionInput
-          question={question}
+          value={question}
           onChange={setQuestion}
           onSubmit={handleQuestionSubmit}
-          onVoiceInput={handleVoiceInput}
-          isLoading={isLoading}
-          isVoiceSupported={isVoiceSupported}
+          onVoiceInput={isVoiceSupported ? handleVoiceInput : undefined}
           isListening={isListening}
+          isLoading={isLoading}
         />
         {currentAnswer && (
-          <AnswerDisplay
-            answer={currentAnswer}
-            onFeedback={handleFeedback}
-          />
+          <Box mt={3}>
+            <AnswerDisplay
+              answer={currentAnswer}
+              onFeedback={handleFeedback}
+            />
+          </Box>
         )}
       </TabPanel>
 

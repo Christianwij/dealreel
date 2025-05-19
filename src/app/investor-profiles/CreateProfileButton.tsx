@@ -9,9 +9,40 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { InvestorProfileForm } from '@/components/InvestorProfileForm';
+import { useToast } from '@/components/ui/use-toast';
+import { InvestorProfileService } from '@/services/investorProfileService';
+import { useAuth } from '@/hooks/useAuth';
+import type { InvestorProfileInput } from '@/types/investor';
 
 export function CreateProfileButton() {
   const [isOpen, setIsOpen] = useState(false);
+  const { toast } = useToast();
+  const { user } = useAuth();
+
+  const handleSubmit = async (data: InvestorProfileInput) => {
+    try {
+      if (!user) {
+        toast({
+          title: 'Error',
+          description: 'You must be logged in to create a profile.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      await InvestorProfileService.createProfile(user.id, data);
+      setIsOpen(false);
+      toast({
+        title: 'Success',
+        description: 'Profile created successfully.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to create profile. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -26,10 +57,8 @@ export function CreateProfileButton() {
           </DialogDescription>
         </DialogHeader>
         <InvestorProfileForm
-          onSuccess={() => {
-            setIsOpen(false);
-            // TODO: Refresh profile list
-          }}
+          onSubmit={handleSubmit}
+          onCancel={() => setIsOpen(false)}
         />
       </DialogContent>
     </Dialog>

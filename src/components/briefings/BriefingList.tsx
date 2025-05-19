@@ -9,6 +9,7 @@ import { BriefingCard } from './BriefingCard';
 import { SearchAndFilter, type SortOption, type FilterOption } from '@/components/search/SearchAndFilter';
 import { useBriefings } from '@/hooks/useBriefings';
 import { useToast } from '@/components/ui/use-toast';
+import type { Briefing } from '@/types/briefing';
 
 export function BriefingList() {
   const [showUpload, setShowUpload] = useState(false);
@@ -19,7 +20,7 @@ export function BriefingList() {
   const { briefings, deleteBriefing } = useBriefings();
   const { toast } = useToast();
 
-  const handleUploadComplete = (documentId: string) => {
+  const handleUploadComplete = async (file: File) => {
     toast({
       title: 'Document Uploaded',
       description: 'Your document has been uploaded and is being processed.',
@@ -46,15 +47,14 @@ export function BriefingList() {
   const filteredBriefings = useMemo(() => {
     if (!briefings) return [];
 
-    return briefings
-      .filter(briefing => {
+    return (briefings as Briefing[])
+      .filter((briefing) => {
         // Apply search filter
         if (searchQuery) {
           const searchLower = searchQuery.toLowerCase();
           const matchesSearch = 
-            briefing.title?.toLowerCase().includes(searchLower) ||
-            briefing.description?.toLowerCase().includes(searchLower) ||
-            briefing.documents?.title?.toLowerCase().includes(searchLower);
+            briefing.title.toLowerCase().includes(searchLower) ||
+            (briefing.document?.title.toLowerCase().includes(searchLower) ?? false);
           
           if (!matchesSearch) return false;
         }
@@ -62,7 +62,7 @@ export function BriefingList() {
         // Apply status filter
         if (filterBy === 'all') return true;
         if (filterBy === 'completed') return briefing.status === 'completed';
-        if (filterBy === 'pending') return briefing.status === 'pending';
+        if (filterBy === 'pending') return briefing.status === 'draft';
         if (filterBy === 'processing') return briefing.status === 'processing';
         
         return true;
@@ -73,11 +73,11 @@ export function BriefingList() {
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         }
         if (sortBy === 'title') {
-          return (a.title || '').localeCompare(b.title || '');
+          return a.title.localeCompare(b.title);
         }
         if (sortBy === 'rating') {
-          const aRating = a.metadata?.averageRating || 0;
-          const bRating = b.metadata?.averageRating || 0;
+          const aRating = a.metadata?.averageRating ?? 0;
+          const bRating = b.metadata?.averageRating ?? 0;
           return bRating - aRating;
         }
         return 0;

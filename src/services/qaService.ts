@@ -7,20 +7,16 @@ export class QAService {
     this.baseUrl = baseUrl;
   }
 
-  private async fetchWithError<T>(url: string, options?: RequestInit): Promise<T> {
+  private async fetchWithError<T>(url: string, options: RequestInit = {}): Promise<T> {
     const response = await fetch(url, options);
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.statusText}`);
+      const error = await response.json().catch(() => ({ message: 'Unknown error' }));
+      throw new Error(error.message || `HTTP error! status: ${response.status}`);
     }
     return response.json();
   }
 
-  // Alias for ask method to maintain backward compatibility
   async askQuestion(briefingId: string, question: string): Promise<QAResponse> {
-    return this.ask(briefingId, question);
-  }
-
-  async ask(briefingId: string, question: string): Promise<QAResponse> {
     try {
       return await this.fetchWithError<QAResponse>(`${this.baseUrl}/${briefingId}/ask`, {
         method: 'POST',
@@ -32,11 +28,23 @@ export class QAService {
     }
   }
 
+  async submitFeedback(feedback: QAFeedback): Promise<void> {
+    try {
+      await this.fetchWithError<void>(`${this.baseUrl}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(feedback)
+      });
+    } catch (error) {
+      throw new Error(`Failed to submit feedback: ${(error as Error).message}`);
+    }
+  }
+
   async getHistory(briefingId: string): Promise<QAHistoryItem[]> {
     try {
       return await this.fetchWithError<QAHistoryItem[]>(`${this.baseUrl}/${briefingId}/history`);
     } catch (error) {
-      throw new Error(`Failed to load history: ${(error as Error).message}`);
+      throw new Error(`Failed to get history: ${(error as Error).message}`);
     }
   }
 
@@ -54,19 +62,7 @@ export class QAService {
     try {
       return await this.fetchWithError<CacheStats>(`${this.baseUrl}/stats`);
     } catch (error) {
-      throw new Error(`Failed to load stats: ${(error as Error).message}`);
-    }
-  }
-
-  async submitFeedback(feedback: QAFeedback): Promise<void> {
-    try {
-      await this.fetchWithError<void>(`${this.baseUrl}/feedback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(feedback)
-      });
-    } catch (error) {
-      throw new Error(`Failed to submit feedback: ${(error as Error).message}`);
+      throw new Error(`Failed to get stats: ${(error as Error).message}`);
     }
   }
 
@@ -78,13 +74,9 @@ export class QAService {
     }
   }
 
-  async getErrorLogs(limit: number = 100): Promise<string[]> {
+  async getErrorLogs(limit = 100): Promise<string[]> {
     try {
-      return await this.fetchWithError<string[]>(`${this.baseUrl}/errors`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit })
-      });
+      return await this.fetchWithError<string[]>(`${this.baseUrl}/errors?limit=${limit}`);
     } catch (error) {
       throw new Error(`Failed to get error logs: ${(error as Error).message}`);
     }
@@ -92,12 +84,7 @@ export class QAService {
 
   async getCachedAnswer(question: string): Promise<QAResponse | null> {
     try {
-      const response = await this.fetchWithError<QAResponse | null>(`${this.baseUrl}/cache`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question })
-      });
-      return response;
+      return await this.fetchWithError<QAResponse | null>(`${this.baseUrl}/cache/${encodeURIComponent(question)}`);
     } catch (error) {
       console.error('Cache lookup failed:', error);
       return null;
